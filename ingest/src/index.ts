@@ -8,10 +8,12 @@ import { downloadAndUnzip, cleanup } from './download.ts';
 import { importExport } from './import.ts';
 import { atomicSwap, updateMeta } from './swap.ts';
 import { log } from './log.ts';
+import { runPhase2 } from './phase2/index.ts';
 
 async function main(): Promise<void> {
   const startedAt = new Date();
   const force = process.env.FORCE_INGEST === '1';
+  const skipPhase2 = process.env.SKIP_PHASE2 === '1';
 
   const remote = await fetchWcaMetadata();
   const local = await fetchLocalState();
@@ -37,30 +39,38 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  if (!force && !isNewExport(remote, local)) {
-    log.info('no new export, skipping');
-    return;
+  const hasNewExport = force || isNewExport(remote, local);
+
+  if (hasNewExport) {
+    const dl = await downloadAndUnzip(remote.tsv_url);
+    try {
+      const result = await importExport(dl.tsvFiles, dl.metadataJsonPath);
+      await atomicSwap();
+      await updateMeta({
+        exportDate: result.metadata.export_date,
+        exportVersion: result.metadata.export_format_version,
+        tsvUrl: remote.tsv_url,
+        rowCounts: result.rowCounts,
+        startedAt,
+      });
+      log.info('phase1: ingest complete', {
+        elapsed_sec: Math.round((Date.now() - startedAt.getTime()) / 1000),
+        row_counts: result.rowCounts,
+      });
+    } finally {
+      await cleanup(dl.dir);
+    }
+  } else {
+    log.info('phase1: no new export, skipping ingest');
   }
 
-  const dl = await downloadAndUnzip(remote.tsv_url);
-  try {
-    const result = await importExport(dl.tsvFiles, dl.metadataJsonPath);
-    // Prefer metadata.json's canonical values over the API's (they should match).
-    await atomicSwap();
-    await updateMeta({
-      exportDate: result.metadata.export_date,
-      exportVersion: result.metadata.export_format_version,
-      tsvUrl: remote.tsv_url,
-      rowCounts: result.rowCounts,
-      startedAt,
-    });
-    log.info('ingest complete', {
-      elapsed_sec: Math.round((Date.now() - startedAt.getTime()) / 1000),
-      row_counts: result.rowCounts,
-    });
-  } finally {
-    await cleanup(dl.dir);
+  // Phase 2 runs every time (even without a new export) so the inactivity
+  // decay stays current on every hourly tick.
+  if (skipPhase2) {
+    log.info('phase2: skipped via SKIP_PHASE2');
+    return;
   }
+  await runPhase2();
 }
 
 main().catch((err) => {

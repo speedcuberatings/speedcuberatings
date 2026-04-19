@@ -6,11 +6,11 @@ See `docs/Rubik's Cube Ranking_Ratings.txt` for the rating model spec.
 
 ## Status
 
-**Phase 1 — WCA ingest (in progress).** Hourly-synced mirror of the WCA results export into Neon Postgres under a `raw_wca` schema.
+**Phase 1 — WCA ingest** ✅ Hourly-synced mirror of the WCA results export into Neon Postgres under `raw_wca`.
 
-Later phases:
-- **Phase 2** — Rating pipeline: transform raw WCA data into derived tables (`current_ratings`, `rating_history`).
-- **Phase 3** — Public site: Next.js on Cloudflare Pages serving leaderboards, competitor pages, charts.
+**Phase 2 — Rating pipeline** ✅ Derived `app.current_ratings` + monthly `scr.rating_history` snapshots, computed from `raw_wca` per the spec in `docs/`.
+
+**Phase 3 — Public site** ⏳ Next.js UI reading the derived tables. Not yet started.
 
 ## Architecture
 

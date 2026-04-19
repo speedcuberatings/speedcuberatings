@@ -8,8 +8,8 @@ Public speedcubing performance-rating site built on top of the official [WCA res
 
 ## Phases
 
-1. **Phase 1 — Ingest** (current): hourly-synced mirror of WCA export → Neon Postgres `raw_wca` schema.
-2. **Phase 2 — Rating pipeline**: compute derived tables (`current_ratings`, `rating_history`) from `raw_wca`.
+1. **Phase 1 — Ingest** ✅: hourly-synced mirror of WCA export → Neon Postgres `raw_wca` schema.
+2. **Phase 2 — Rating pipeline** ✅: compute derived tables (`app.current_ratings`, `scr.rating_history`) from `raw_wca`.
 3. **Phase 3 — Public site**: Next.js UI reading the derived tables.
 
 **Important invariant:** the `web/` app must only query derived tables, never `raw_wca.*`. This lets us absorb WCA schema changes in one place (the rating pipeline) without breaking the site.
@@ -51,8 +51,10 @@ pnpm --filter @scr/web run dev
 ## Schema conventions
 
 - `raw_wca.*` — 1:1 mirror of WCA TSV tables. All columns are `text`. Table/column names are whatever the TSV header says (snake_case in V2).
-- `scr._meta` — single-row ingest state. Persists across schema swaps.
-- Future: `app.*` or top-level schema for derived tables.
+- `app.*` — derived, typed, app-facing schema produced by Phase 2. Current tables: `events`, `competitors`, `official_results`, `current_ratings`.
+- `scr._meta` — single-row Phase 1 ingest state. Persists across schema swaps.
+- `scr.rating_history` — monthly snapshots of `current_ratings`, for trend/delta displays.
+- `scr.rating_snapshot_state` — tracks which month we last snapshotted, so reruns within a month don't duplicate.
 
 ## Ingest design notes
 
@@ -60,6 +62,24 @@ pnpm --filter @scr/web run dev
 - **Atomic swap**: fresh data lands in `wca_staging`, then `ALTER SCHEMA ... RENAME` atomically promotes it to `raw_wca`, with the previous generation retained as `raw_wca_prev` for one cycle.
 - **Major-version guard**: if WCA bumps the major part of `export_format_version`, ingest halts with exit code 2 instead of auto-proceeding. Requires a manual review.
 - **Sanity checks**: post-import, row counts for core tables (`persons`, `competitions`, `results`, `events`, `countries`) are validated against minimum thresholds; ingest aborts before swap if they fail.
+- **Two-stage workflow**: Phase 1 runs only when the WCA export changes; Phase 2 runs every hourly tick (so the inactivity decay updates daily).
+
+## Rating model (Phase 2)
+
+Translates the spec in `docs/Rubik's Cube Ranking_Ratings.txt`. Per (competitor, event):
+
+1. Collect last-2-year results. Exclude if fewer than 3.
+2. For each result, compute a Kinch-style score: `100 × (WR_value / result_value)`. WR is the all-time minimum of the same metric used for scoring (`average` if the event is averaged, else `best`).
+3. Multiply by bonus factor (max +17%):
+   - Final round: +3%; gold/silver/bronze medal in final: +4/+2/+1%
+   - Highest of single-record or average-record: WR +6%, continental +3%, NR +1%
+   - World / continental / national championship: +4/+2/+1%
+4. Weight by `0.99 ^ days_since_competition`. Take weighted mean → raw rating.
+5. If days since most recent result > 90, multiply by `0.995 ^ (days − 90)`.
+6. At the two-year cutoff the competitor drops out naturally (no results in window).
+7. Rank by rating per event (DENSE_RANK).
+
+Tunable constants live at the top of `ingest/src/phase2/ratings.ts`. Rateable event list is in `ingest/src/phase2/transform.ts`.
 
 ## Verification checklist (Phase 1)
 

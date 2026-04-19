@@ -1,0 +1,15 @@
+{
+  "name": "speedcuberatings",
+  "private": true,
+  "version": "0.0.0",
+  "description": "WCA-synced speedcubing ratings site",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "ingest": "pnpm --filter @scr/ingest run ingest",
+    "ingest:check": "pnpm --filter @scr/ingest run check",
+    "web": "pnpm --filter @scr/web run dev"
+  }
+}

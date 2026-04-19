@@ -12,17 +12,31 @@ const MIN_RESULTS = 3;          // require >= this many results in window
 
 /**
  * Bonus factors per the rating spec. At most one from each category
- * applies; the total maxes at +17%.
+ * applies; the total maxes at +15%.
  *
- *   final            +3%
- *   gold/silver/bronze medal in final   +4 / +2 / +1 %
- *   WR / continental / national record  +6 / +3 / +1 %
- *   world / continental / national championship  +4 / +2 / +1 %
+ * The spec states a max of "15 to 17%"; we use the lower end (+15%) to
+ * stay close to the reference implementation's calibration. All weights
+ * are the 17%-scale values multiplied by 15/17 so the internal ordering
+ * (record > championship = medal > final) is preserved.
+ *
+ *   final            +2.65%
+ *   gold/silver/bronze medal in final   +3.53 / +1.76 / +0.88%
+ *   WR / continental / national record  +5.29 / +2.65 / +0.88%
+ *   world / continental / national championship  +3.53 / +1.76 / +0.88%
  */
-const BONUS_FINAL = 0.03;
-const BONUS_MEDAL = [0.04, 0.02, 0.01] as const;
-const BONUS_RECORD = { WR: 0.06, continental: 0.03, NR: 0.01 } as const;
-const BONUS_CHAMP = { world: 0.04, continental: 0.02, national: 0.01 } as const;
+const BONUS_SCALE = 15 / 17;
+const BONUS_FINAL = 0.03 * BONUS_SCALE;
+const BONUS_MEDAL = [0.04 * BONUS_SCALE, 0.02 * BONUS_SCALE, 0.01 * BONUS_SCALE] as const;
+const BONUS_RECORD = {
+  WR: 0.06 * BONUS_SCALE,
+  continental: 0.03 * BONUS_SCALE,
+  NR: 0.01 * BONUS_SCALE,
+} as const;
+const BONUS_CHAMP = {
+  world: 0.04 * BONUS_SCALE,
+  continental: 0.02 * BONUS_SCALE,
+  national: 0.01 * BONUS_SCALE,
+} as const;
 
 const CONTINENTAL_RECORD_CODES = new Set(['AfR', 'AsR', 'ER', 'NAR', 'OcR', 'SAR']);
 

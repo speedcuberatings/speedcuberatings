@@ -3,6 +3,10 @@
 [![Ingest](https://github.com/speedcuberatings/speedcuberatings/actions/workflows/ingest.yml/badge.svg)](https://github.com/speedcuberatings/speedcuberatings/actions/workflows/ingest.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+<p align="center">
+  <img src="docs/hero.jpg" alt="Screenshot of the Speedcube Ratings leaderboard" width="800">
+</p>
+
 A public, always-up-to-date performance-rating leaderboard for the speedcubing community, built on top of the official [WCA results export](https://www.worldcubeassociation.org/export/results).
 
 The rating model is by **James Macdiarmid**, proposed in his video [_Our ranking system is broken. Let's fix it!_](https://www.youtube.com/watch?v=2lU-d6OUU3Q). This project implements his spec.

@@ -15,7 +15,7 @@ import { makePool } from '../ingest/src/db.ts';
 async function main() {
   const pool = makePool();
 
-  // Reference figures from Seasonal ratings.xlsx (2026-04-20).
+  // Reference figures from local/Seasonal ratings.xlsx (2026-04-20).
   const refs: Array<[string, string, number]> = [
     ['2019WANY36', 'Yiheng Wang',      86.87],
     ['2023GENG02', 'Xuanyi Geng',      86.03],

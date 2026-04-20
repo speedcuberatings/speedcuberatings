@@ -14,6 +14,7 @@ out/
 *.tsv
 *.zip
 
-# reference material — James's spreadsheet is kept locally for calibration
-# but isn't distributed with the repo.
-Seasonal ratings.xlsx
+# local-only files: scratch notes, reference spreadsheets, anything not
+# meant to be distributed with the repo. Drop things here instead of
+# adding one-off patterns above.
+/local/

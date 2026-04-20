@@ -121,7 +121,7 @@ Per (competitor, event, metric), every ingest run:
 5. If days since most recent result exceeds the event-specific
    grace period (90 / 180 / 365 days; see
    `INACTIVITY_GRACE_DAYS` in `ratings.ts`), multiply by
-   `0.995 ^ (days − grace)`.
+   `0.9995 ^ (days − grace)`.
 6. Rank by rating per (event, metric) using SQL `RANK()`.
 
 Tunable constants are at the top of `ingest/src/derive/ratings.ts`.

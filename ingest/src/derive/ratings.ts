@@ -10,8 +10,8 @@ import { log } from '../log.ts';
  * (https://www.youtube.com/watch?v=2lU-d6OUU3Q). This implementation is
  * calibrated against the reference leaderboard shown in that video.
  */
-const WEIGHT_BASE = 0.99;       // per day
-const INACTIVITY_BASE = 0.995;  // per day beyond grace
+const WEIGHT_BASE = 0.99;        // per day, within-window recency weight
+const INACTIVITY_BASE = 0.9995;  // per day beyond grace
 
 /**
  * Inactivity grace period, in days, before an inactive competitor's rating

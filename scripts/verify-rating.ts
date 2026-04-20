@@ -10,7 +10,7 @@
 import { makePool, makeClient } from '../ingest/src/db.ts';
 
 const WEIGHT_BASE = 0.99;
-const INACTIVITY_BASE = 0.995;
+const INACTIVITY_BASE = 0.9995;
 const INACTIVITY_GRACE_DAYS = 90;
 const MIN_RESULTS = 3;
 

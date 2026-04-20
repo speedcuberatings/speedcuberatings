@@ -67,7 +67,7 @@ Per (competitor, event, metric):
 2. For each round, compute a Kinch-style score: `100 × (WR_value / result_value)`. WR is the all-time minimum of the same metric (`average` for Ao5/Mo3 events; `best` for BLD, FMC, multi).
 3. Multiply by a bonus factor (max +2%) for context: final round + medal, regional record, championship scope.
 4. Weight by `0.99 ^ days_since_competition`; take the weighted mean → raw rating.
-5. If the competitor hasn't competed in this event for longer than the event-specific grace period (90 days for 3×3, 2×2, OH, pyra, skewb, squan; 180 days for big cubes / clock / minx / 3bld; 365 days for FMC / multi / 4bld / 5bld), multiply by `0.995 ^ (days − grace)`.
+5. If the competitor hasn't competed in this event for longer than the event-specific grace period (90 days for 3×3, 2×2, OH, pyra, skewb, squan; 180 days for big cubes / clock / minx / 3bld; 365 days for FMC / multi / 4bld / 5bld), multiply by `0.9995 ^ (days − grace)`.
 6. Rank per event and metric using SQL `RANK()` (tied competitors share a rank; the next slot skips).
 
 Bonus weights are calibrated against the reference values shown in James's video (MAE 0.45 across 11 reference figures). See the comment block at the top of `ingest/src/derive/ratings.ts` and `scripts/sweep-rating.ts`.

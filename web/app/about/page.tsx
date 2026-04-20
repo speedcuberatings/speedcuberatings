@@ -106,7 +106,7 @@ export default function AboutPage() {
             and 3-blind, and <strong>365 days</strong> for the rare events
             (FMC, multi-blind, 4- and 5-blind) that are mostly only scheduled
             at larger competitions. After the grace the rating multiplies by{' '}
-            <code className="font-mono text-[15px]">0.995 ^ (days − grace)</code>
+            <code className="font-mono text-[15px]">0.9995 ^ (days − grace)</code>
             .
           </li>
           <li>

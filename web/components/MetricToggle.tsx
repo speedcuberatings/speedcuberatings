@@ -1,15 +1,17 @@
 'use client';
 
-import Link from 'next/link';
-import { useSearchParams, usePathname } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import type { Metric } from '@/lib/queries';
 
 /**
  * Two-option toggle for Single vs. Average. Only rendered when both metrics
  * exist for the current event.
  *
- * Navigating via <Link> preserves other query params (like region). Uses
- * scroll={false} so the page doesn't jump to top when toggling.
+ * Implemented as <button onClick={router.push}> rather than <Link> so the
+ * tap fires synchronously on mobile. With <Link>, soft-nav into a
+ * Suspense boundary that renders a skeleton occasionally requires a
+ * second tap on iOS — the first tap's click event gets cancelled by the
+ * intervening paint. router.push side-steps the issue.
  */
 export function MetricToggle({
   current,
@@ -18,6 +20,7 @@ export function MetricToggle({
   current: Metric;
   show: { single: boolean; average: boolean };
 }) {
+  const router = useRouter();
   const params = useSearchParams();
   const pathname = usePathname();
 
@@ -40,22 +43,27 @@ export function MetricToggle({
       {(['average', 'single'] as const).map((m) => {
         const active = current === m;
         return (
-          <Link
+          <button
             key={m}
-            href={hrefFor(m)}
-            scroll={false}
+            type="button"
             aria-current={active ? 'true' : undefined}
+            aria-pressed={active}
+            onClick={() => {
+              if (active) return;
+              router.push(hrefFor(m), { scroll: false });
+            }}
             className={[
               'inline-flex items-center justify-center min-h-[44px] px-5 py-2',
               'text-[12px] tracking-[0.08em] uppercase transition-colors',
               '[touch-action:manipulation] [-webkit-tap-highlight-color:transparent]',
+              'cursor-pointer select-none',
               active
                 ? 'bg-[var(--color-ink)] text-[var(--color-paper)]'
                 : 'text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-paper-2)]',
             ].join(' ')}
           >
             {m === 'average' ? 'Average' : 'Single'}
-          </Link>
+          </button>
         );
       })}
     </div>

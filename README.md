@@ -63,14 +63,19 @@ scripts/       ops scripts (rating verification and parameter sweeps)
 
 Per (competitor, event, metric):
 
-1. Collect their last 24 months of WCA results. Require ≥3 in window.
+1. Collect their results over the last 24 months, *anchored on their most recent competition in this event* (so a competitor who last competed 18 months ago still rates off their full 2-year context, rather than having the window shrink around them). Competitors whose most recent round in the event is older than 24 months drop off the leaderboard. Require ≥3 results in window.
 2. For each round, compute a Kinch-style score: `100 × (WR_value / result_value)`. WR is the all-time minimum of the same metric (`average` for Ao5/Mo3 events; `best` for BLD, FMC, multi).
 3. Multiply by a bonus factor (max +2%) for context: final round + medal, regional record, championship scope.
 4. Weight by `0.99 ^ days_since_competition`; take the weighted mean → raw rating.
-5. If the competitor hasn't competed in more than 90 days, multiply by `0.995 ^ (days − 90)`.
+5. If the competitor hasn't competed in this event for longer than the event-specific grace period (90 days for 3×3, 2×2, OH, pyra, skewb, squan; 180 days for big cubes / clock / minx / 3bld; 365 days for FMC / multi / 4bld / 5bld), multiply by `0.995 ^ (days − grace)`.
 6. Rank per event and metric using SQL `RANK()` (tied competitors share a rank; the next slot skips).
 
 Bonus weights are calibrated against the reference values shown in James's video (MAE 0.45 across 11 reference figures). See the comment block at the top of `ingest/src/derive/ratings.ts` and `scripts/sweep-rating.ts`.
+
+### Known gaps
+
+- **DNFs are not yet factored in.** Currently we drop DNF results when computing a competitor's rating, which understates the rating impact of unreliable solvers in BLD / FMC / multi / clock. James noted in the source video's comment thread that DNF rate should eventually be folded in as a per-event penalty coefficient. See issue tracker / `AGENTS.md` for progress.
+- The per-event inactivity grace period (90 / 180 / 365 days depending on how often the event is held) is a judgement call rather than a value from the spec.
 
 ## Running locally
 

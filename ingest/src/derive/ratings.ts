@@ -12,7 +12,45 @@ import { log } from '../log.ts';
  */
 const WEIGHT_BASE = 0.99;       // per day
 const INACTIVITY_BASE = 0.995;  // per day beyond grace
-const INACTIVITY_GRACE_DAYS = 90;
+
+/**
+ * Inactivity grace period, in days, before an inactive competitor's rating
+ * starts to decay. The spec suggests 90 days, but James Macdiarmid noted
+ * in the YouTube comments that less-frequent events ("something like multi")
+ * should use a higher threshold since even an active competitor may not
+ * enter them every 90 days.
+ *
+ * Values below are per-event; events not listed use DEFAULT_INACTIVITY_GRACE_DAYS.
+ */
+const DEFAULT_INACTIVITY_GRACE_DAYS = 90;
+const INACTIVITY_GRACE_DAYS: Record<string, number> = {
+  // Standard short-cycle events — default 90 days.
+  '333': 90,
+  '222': 90,
+  '333oh': 90,
+  pyram: 90,
+  skewb: 90,
+  sq1: 90,
+  // Bigger cubes, clock, megaminx, 3bld — still popular, but rarely held
+  // at the smallest comps. A longer grace avoids penalising competitors
+  // in regions with fewer full-event competitions.
+  '444': 180,
+  '555': 180,
+  '666': 180,
+  '777': 180,
+  clock: 180,
+  minx: 180,
+  '333bf': 180,
+  // Rare events — only scheduled at larger competitions. Allow a full year.
+  '444bf': 365,
+  '555bf': 365,
+  '333fm': 365,
+  '333mbf': 365,
+};
+function inactivityGraceDays(eventId: string): number {
+  return INACTIVITY_GRACE_DAYS[eventId] ?? DEFAULT_INACTIVITY_GRACE_DAYS;
+}
+
 const MIN_RESULTS = 3;          // require >= this many results in window
 
 /**
@@ -281,6 +319,7 @@ async function computeEventMetric(
   }
 
   let kept = 0;
+  const graceDays = inactivityGraceDays(eventId);
   for (const [competitor, a] of acc) {
     if (a.count < MIN_RESULTS) continue;
     const raw = a.weightedScoreSum / a.weightSum;
@@ -291,8 +330,8 @@ async function computeEventMetric(
       Math.floor((today.getTime() - lastDate.getTime()) / 86_400_000),
     );
     const decay =
-      daysSince > INACTIVITY_GRACE_DAYS
-        ? Math.pow(INACTIVITY_BASE, daysSince - INACTIVITY_GRACE_DAYS)
+      daysSince > graceDays
+        ? Math.pow(INACTIVITY_BASE, daysSince - graceDays)
         : 1;
     const rating = raw * decay;
 

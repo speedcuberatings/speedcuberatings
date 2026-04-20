@@ -102,7 +102,10 @@ schema first. This keeps upstream format changes contained.
 
 Per (competitor, event, metric), every ingest run:
 
-1. Collect last-24-months results. Exclude if fewer than 3 in window.
+1. Collect results in a 24-month window *anchored on the competitor's
+   most recent round in the event*, not on today. Competitors whose
+   latest round is older than 24 months drop out of the leaderboard
+   for that event. Exclude the competitor if fewer than 3 in window.
 2. For each round, compute a Kinch-style score:
    `100 × (WR_value / result_value)`. WR is the all-time minimum of
    the same metric (`average` for Ao5/Mo3 events; `best` for BLD /
@@ -115,13 +118,37 @@ Per (competitor, event, metric), every ingest run:
    the top of `ingest/src/derive/ratings.ts`.
 4. Weight by `0.99 ^ days_since_competition`. Weighted mean → raw
    rating.
-5. If days since most recent result > 90, multiply by
-   `0.995 ^ (days − 90)`. Competitors disappear naturally at the
-   24-month cutoff.
+5. If days since most recent result exceeds the event-specific
+   grace period (90 / 180 / 365 days; see
+   `INACTIVITY_GRACE_DAYS` in `ratings.ts`), multiply by
+   `0.995 ^ (days − grace)`.
 6. Rank by rating per (event, metric) using SQL `RANK()`.
 
 Tunable constants are at the top of `ingest/src/derive/ratings.ts`.
 Rateable event list is in `ingest/src/derive/transform.ts`.
+
+### Rating model follow-ups
+
+- **DNF handling (TODO).** `transform.ts` filters `r.best::int > 0`, which
+  silently drops DNF rounds before ratings see them. For events where
+  DNFs are common (3bld / 4bld / 5bld / FMC / multi / clock) this
+  overstates unreliable solvers. James Macdiarmid flagged this as a
+  known gap in the source-video comments and suggested a per-event DNF
+  coefficient roughly like
+  `rating *= max(floor, 1 − α × max(0, dnf_rate_in_window − baseline_rate))`
+  with `α` and `baseline_rate` tuned per event (BLD expects more DNFs
+  than 3×3). Implement as a second-pass adjustment inside `ratings.ts`
+  that reads in-window DNF counts; calibrate against known reliable vs
+  unreliable solvers before shipping.
+- **Window is anchored on the competitor's most recent competition in
+  the event**, not the current date. A competitor who last competed 18
+  months ago still rates off their full 24-month context, and
+  disappears from the leaderboard only once their most recent round
+  falls outside the 24-month cutoff. See `last_competed_per_event` in
+  `transform.ts`.
+- **Per-event inactivity grace period.** 90 / 180 / 365 days depending
+  on how frequently the event is held (see `INACTIVITY_GRACE_DAYS` map
+  in `ratings.ts`). Judgement call, not spec.
 
 ## Web app
 

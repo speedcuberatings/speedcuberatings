@@ -20,10 +20,15 @@ export const RESULTS_WINDOW_YEARS = 2;
  *
  * - `events`: 1:1 with raw_wca.events, plus a `rateable` flag.
  * - `competitors`: 1:1 with raw_wca.persons (sub_id = 1 is the canonical row).
- * - `official_results`: last 2 years of competition results, joined with
- *   `competitions` for the date and with `championships` for the scope,
- *   with types cast from text and invalid values (DNF=-1, DNS=-2, 0=no
- *   result) filtered out.
+ * - `competitions`: all competitions (unfiltered; ~27k rows).
+ * - `official_results`: per (competitor, event), the last N years of results
+ *   anchored on that competitor's most recent competition in the event.
+ *   Competitors whose most recent round in the event is older than N years
+ *   from today are excluded entirely — the rating model treats them as
+ *   having dropped out. Per James Macdiarmid (rating spec author), results
+ *   should only "roll off the back" when the competitor enters new results.
+ *   Invalid values (DNF=-1, DNS=-2, 0=no result) are filtered out; see
+ *   DNF handling note in README / TODOs.
  */
 export async function transform(): Promise<{
   events: number;
@@ -101,7 +106,6 @@ export async function transform(): Promise<{
       SELECT c.id, c.name, NULLIF(c.city_name, ''), c.country_id, cd.start_date, cd.end_date
         FROM raw_wca.competitions c
         JOIN comp_date cd ON cd.competition_id = c.id
-       WHERE cd.end_date >= ${cutoff}
     `);
 
     // Build a competition -> championship_scope map. A single competition can
@@ -123,6 +127,26 @@ export async function transform(): Promise<{
       FROM raw_wca.championships
       GROUP BY competition_id
     `);
+
+    // Per-(competitor, event) most-recent competition date — the anchor
+    // for the rolling window. Computed once so we can both (a) exclude
+    // competitors whose last round in the event is older than the cutoff
+    // and (b) keep all of their results within N years of that anchor.
+    await client.query(`DROP TABLE IF EXISTS last_competed_per_event`);
+    await client.query(`
+      CREATE TEMP TABLE last_competed_per_event AS
+      SELECT r.person_id,
+             r.event_id,
+             MAX(cd.end_date) AS last_date
+        FROM raw_wca.results r
+        JOIN comp_date cd ON cd.competition_id = r.competition_id
+       WHERE r.best::int > 0
+       GROUP BY r.person_id, r.event_id
+      HAVING MAX(cd.end_date) >= ${cutoff}
+    `);
+    await client.query(
+      `CREATE INDEX ON last_competed_per_event (person_id, event_id)`,
+    );
 
     await client.query(`
       INSERT INTO app_staging.official_results (
@@ -149,10 +173,14 @@ export async function transform(): Promise<{
       FROM raw_wca.results r
       JOIN comp_date cd ON cd.competition_id = r.competition_id
       JOIN raw_wca.round_types rt ON rt.id = r.round_type_id
+      JOIN last_competed_per_event lce
+           ON lce.person_id = r.person_id AND lce.event_id = r.event_id
       LEFT JOIN comp_championship cc ON cc.competition_id = r.competition_id
-      WHERE cd.end_date >= ${cutoff}
+      WHERE cd.end_date >= lce.last_date - INTERVAL '${RESULTS_WINDOW_YEARS} years'
         AND r.best::int > 0
     `);
+
+    await client.query(`DROP TABLE last_competed_per_event`);
 
     await client.query(`DROP TABLE comp_championship`);
     await client.query(`DROP TABLE comp_date`);

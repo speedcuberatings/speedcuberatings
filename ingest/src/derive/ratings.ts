@@ -54,65 +54,90 @@ function inactivityGraceDays(eventId: string): number {
 const MIN_RESULTS = 3;          // require >= this many results in window
 
 /**
- * Bonus factors per the rating spec. At most one from each category
- * applies; the total maxes at +2%.
+ * Bonus factors per James Macdiarmid's exact formula (reverse-engineered
+ * from his "Seasonal ratings" reference spreadsheet, April 2026).
  *
- * The spec in the source video states a max of "15 to 17%", but when we
- * reverse-engineered James Macdiarmid's reference rankings we found his
- * effective bonuses are ~10× smaller than that stated range. Calibrating
- * against 11 reference values from his leaderboard image, a ~2% max cap
- * gives mean absolute error of 0.45 (vs 1.22 at 15%) and matches 9 of 11
- * competitors to within 0.5 points. We scale the nominal 17%-values by
- * 2/17 to preserve the internal ordering (record > championship = medal
- * > final).
+ * Per-round, the bonus multiplier is
  *
- *   final            +0.35%
- *   gold/silver/bronze medal in final   +0.47 / +0.24 / +0.12%
- *   WR / continental / national record  +0.71 / +0.35 / +0.12%
- *   world / continental / national championship  +0.47 / +0.24 / +0.12%
+ *   1 + 0.01 * (placement_score + record_score)
+ *
+ * where:
+ *
+ *   placement_score = (R + S + T + U + 0.5) * 0.3 * champ_mult - 0.075
+ *     R  = 1 if round is final else 0
+ *     S  = 1 if final AND position <= 3 (bronze+)
+ *     T  = 1 if final AND position <= 2 (silver+)
+ *     U  = 2 if final AND position == 1 (gold)
+ *     champ_mult, based on championship tier:
+ *       worlds              → 5.5
+ *       continental         → 3.0
+ *       national            → 1.0
+ *       (non-championship)  → 0.5
+ *
+ *   record_score = 2*any_record + 2*continental_or_higher + 4*wr
+ *     where "any record" includes NR / CR / WR (so a single NR adds 2,
+ *     a CR adds 4, a WR adds 8).
+ *
+ * Notes:
+ *   - Placement contributes even for non-final rounds at championships:
+ *     a first-round heat at Worlds gets (0.5)*0.3*5.5 - 0.075 = 0.75.
+ *   - Single and average regional records are de-duped: if a round set
+ *     both the WR single AND WR average, it still only contributes one
+ *     WR's worth of points (not two).
+ *   - Max theoretical single-round bonus: gold at Worlds (placement=9)
+ *     plus WR (record=8) → 1 + 0.01 * 17 = +17%. In practice, across
+ *     all of a top competitor's rounds the aggregate bonus effect on
+ *     the final rating is ~0.2–0.3 points.
+ *
+ * Ships June 2026. Supersedes the earlier heuristic 2/17 calibration
+ * — this formula matches James's reference leaderboard to MAE ~0.025,
+ * vs 0.45 for the heuristic.
  */
-const BONUS_SCALE = 2 / 17;
-const BONUS_FINAL = 0.03 * BONUS_SCALE;
-const BONUS_MEDAL = [0.04 * BONUS_SCALE, 0.02 * BONUS_SCALE, 0.01 * BONUS_SCALE] as const;
-const BONUS_RECORD = {
-  WR: 0.06 * BONUS_SCALE,
-  continental: 0.03 * BONUS_SCALE,
-  NR: 0.01 * BONUS_SCALE,
-} as const;
-const BONUS_CHAMP = {
-  world: 0.04 * BONUS_SCALE,
-  continental: 0.02 * BONUS_SCALE,
-  national: 0.01 * BONUS_SCALE,
-} as const;
+
+const JAMES_MODIFIER = 0.01;
 
 const CONTINENTAL_RECORD_CODES = new Set(['AfR', 'AsR', 'ER', 'NAR', 'OcR', 'SAR']);
 
-type Metric = 'single' | 'average';
-
-function recordTier(code: string | null): number {
-  if (!code) return 0;
-  if (code === 'WR') return BONUS_RECORD.WR;
-  if (CONTINENTAL_RECORD_CODES.has(code)) return BONUS_RECORD.continental;
-  if (code === 'NR') return BONUS_RECORD.NR;
-  return 0;
+function champMult(isChampionship: boolean, scope: string | null): number {
+  if (!isChampionship) return 0.5;
+  if (scope === 'world')       return 5.5;
+  if (scope === 'continental') return 3.0;
+  if (scope === 'national')    return 1.0;
+  return 0.5;
 }
 
-function recordBoost(single: string | null, avg: string | null): number {
-  return Math.max(recordTier(single), recordTier(avg));
+function placementScore(row: ResultRow): number {
+  const R = row.is_final ? 1 : 0;
+  const S = row.is_final && row.position <= 3 ? 1 : 0;
+  const T = row.is_final && row.position <= 2 ? 1 : 0;
+  const U = row.is_final && row.position === 1 ? 2 : 0;
+  const mult = champMult(row.is_championship, row.championship_scope);
+  return (R + S + T + U + 0.5) * 0.3 * mult - 0.075;
+}
+
+function recordScore(single: string | null, avg: string | null): number {
+  // De-dupe: if both single and avg set the same tier of record, still
+  // count each tier at most once. Across the two metrics, the highest
+  // tier of each is what matters.
+  let anyRecord = false;
+  let anyContinental = false;
+  let anyWR = false;
+  for (const code of [single, avg]) {
+    if (!code) continue;
+    anyRecord = true;
+    if (code === 'WR') { anyContinental = true; anyWR = true; }
+    else if (CONTINENTAL_RECORD_CODES.has(code)) { anyContinental = true; }
+  }
+  return (anyRecord ? 2 : 0) + (anyContinental ? 2 : 0) + (anyWR ? 4 : 0);
 }
 
 function bonusMultiplier(row: ResultRow): number {
-  let b = 0;
-  if (row.is_final) {
-    b += BONUS_FINAL;
-    if (row.position >= 1 && row.position <= 3) b += BONUS_MEDAL[row.position - 1];
-  }
-  b += recordBoost(row.regional_single_record, row.regional_average_record);
-  if (row.is_championship && row.championship_scope) {
-    b += BONUS_CHAMP[row.championship_scope as keyof typeof BONUS_CHAMP] ?? 0;
-  }
-  return 1 + b;
+  const total = placementScore(row)
+    + recordScore(row.regional_single_record, row.regional_average_record);
+  return 1 + JAMES_MODIFIER * total;
 }
+
+type Metric = 'single' | 'average';
 
 interface ResultRow {
   competitor_id: string;

@@ -110,12 +110,16 @@ Per (competitor, event, metric), every ingest run:
    `100 × (WR_value / result_value)`. WR is the all-time minimum of
    the same metric (`average` for Ao5/Mo3 events; `best` for BLD /
    FMC / multi / events without averages).
-3. Multiply by bonus factor (max +2%): final round + medal, regional
-   record, championship scope. The source video states "max 15 to
-   17%" but effective values in the reference implementation are
-   ~10× smaller; calibrated via `scripts/sweep-rating.ts` to match
-   the reference leaderboard to MAE 0.45. See the comment block at
-   the top of `ingest/src/derive/ratings.ts`.
+3. Multiply by a bonus factor `1 + 0.01 × (placement + record)`:
+   - **Placement** = `(R + S + T + U + 0.5) × 0.3 × champ_mult − 0.075`
+     where R=1 if final, S=1 if pos≤3 in final, T=1 if pos≤2, U=2
+     if pos=1, and `champ_mult` is 5.5 / 3.0 / 1.0 / 0.5 for
+     worlds / continental / national / non-championship.
+   - **Record** = `2·any_record + 2·continental_or_higher + 4·WR`,
+     so NR=2, CR=4, WR=8. Single and average records on the same
+     round de-dupe.
+   Reverse-engineered from James's "Seasonal ratings" spreadsheet
+   (April 2026); reproduces his reference leaderboard to MAE ~0.025.
 4. Weight by `0.99 ^ days_since_competition`. Weighted mean → raw
    rating.
 5. If days since most recent result exceeds the event-specific

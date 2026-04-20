@@ -83,10 +83,18 @@ export default function AboutPage() {
             100; everyone else scales below.
           </li>
           <li>
-            Apply a small context bonus (up to <strong>+2%</strong>) for the
-            round: was it a final, did it win a medal, was it a regional or
-            world record, was it set at a championship? The factors compound
-            but the total is capped; most rounds get no bonus at all.
+            Apply a context bonus. Each round&rsquo;s score is multiplied by{' '}
+            <code className="font-mono text-[15px]">
+              1 + 0.01 × (placement + record)
+            </code>
+            , where placement rewards finals and medal positions (scaled
+            sharply upward at national, continental and world
+            championships) and record rewards national / continental /
+            world records. A normal first-round solve at a local comp gets
+            no bonus at all; a gold-medal world-record finals round at
+            Worlds maxes out near +17%. In aggregate, the bonus lifts a
+            top competitor&rsquo;s final rating by a few tenths of a
+            point.
           </li>
           <li>
             Weight each round by{' '}
@@ -116,10 +124,12 @@ export default function AboutPage() {
           </li>
         </ol>
         <p>
-          The bonus weights in step 3 are notably smaller than the
-          &ldquo;15 to 17%&rdquo; the video mentions. We calibrated them to
-          reproduce the reference numbers James showed on screen — his actual
-          implementation runs much closer to +2%.
+          The bonus formula above is taken directly from James&rsquo;s
+          reference spreadsheet — we reverse-engineered it from his Excel
+          model rather than re-deriving it from first principles. On 11
+          reference competitors the output matches his leaderboard to
+          mean-absolute-error ~0.025 (i.e., to two decimal places for
+          nearly everyone).
         </p>
 
         <h2

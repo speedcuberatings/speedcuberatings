@@ -13,3 +13,7 @@ out/
 /tmp-ingest/
 *.tsv
 *.zip
+
+# reference material — James's spreadsheet is kept locally for calibration
+# but isn't distributed with the repo.
+Seasonal ratings.xlsx

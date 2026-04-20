@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import type { Continent, Country } from '@/lib/queries';
 import { SearchableSelect, type SearchableSelectOption } from './SearchableSelect';
@@ -14,6 +14,11 @@ import { SearchableSelect, type SearchableSelectOption } from './SearchableSelec
  *   - null              → All regions
  *   - `_Continent`      → a continent (e.g. `_Europe`)
  *   - `Country Name`    → a single country (the WCA country id)
+ *
+ * Navigations are wrapped in useTransition so the UI stays interactive
+ * while the new leaderboard is being fetched, and the visible selection
+ * updates optimistically the moment a value is picked instead of waiting
+ * for the URL to change.
  */
 export function RegionPicker({
   continents,
@@ -27,29 +32,47 @@ export function RegionPicker({
   const router = useRouter();
   const params = useSearchParams();
   const pathname = usePathname();
+  const [, startTransition] = useTransition();
+  // `null` here means "no override" — display the URL-derived region.
+  // `''` means optimistic All regions, anything else is the optimistic
+  // selection waiting for the URL to catch up.
+  const [pendingRegion, setPendingRegion] = useState<string | null | undefined>(
+    undefined,
+  );
+  const effectiveRegion = pendingRegion === undefined ? region : pendingRegion;
+
+  // Drop the optimistic override once the URL catches up.
+  useEffect(() => {
+    if (pendingRegion !== undefined && pendingRegion === region) {
+      setPendingRegion(undefined);
+    }
+  }, [pendingRegion, region]);
 
   // Resolve the current continent selection. If region is a country, we
   // infer the continent from the country's `continent_id`.
   let selectedContinent: string = 'all';
   let selectedCountry: string | null = null;
-  if (region) {
-    if (region.startsWith('_')) {
-      selectedContinent = region;
+  if (effectiveRegion) {
+    if (effectiveRegion.startsWith('_')) {
+      selectedContinent = effectiveRegion;
     } else {
-      const country = countries.find((c) => c.id === region);
+      const country = countries.find((c) => c.id === effectiveRegion);
       if (country) {
-        selectedCountry = region;
+        selectedCountry = effectiveRegion;
         selectedContinent = country.continent_id ?? 'all';
       }
     }
   }
 
   const goRegion = (next: string | null) => {
+    setPendingRegion(next);
     const sp = new URLSearchParams(params.toString());
     if (!next || next === 'all') sp.delete('region');
     else sp.set('region', next);
     const qs = sp.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    startTransition(() => {
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
   };
 
   const shortContinent = (name: string) =>

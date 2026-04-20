@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import type { Metric } from '@/lib/queries';
 
@@ -7,11 +8,15 @@ import type { Metric } from '@/lib/queries';
  * Two-option toggle for Single vs. Average. Only rendered when both metrics
  * exist for the current event.
  *
- * Implemented as <button onClick={router.push}> rather than <Link> so the
- * tap fires synchronously on mobile. With <Link>, soft-nav into a
- * Suspense boundary that renders a skeleton occasionally requires a
- * second tap on iOS — the first tap's click event gets cancelled by the
- * intervening paint. router.push side-steps the issue.
+ * - Uses router.push (not <Link>) so the tap fires synchronously.
+ * - Wraps the navigation in useTransition so React keeps the UI
+ *   interactive during the in-flight data fetch — without it, the
+ *   App Router holds the previous render until the new one is ready
+ *   and rapid taps feel ignored.
+ * - Tracks an optimistic "pending" target so the toggle visually
+ *   updates the instant you tap, instead of waiting for the URL to
+ *   change after the transition resolves. This is the visual feedback
+ *   that confirms the tap registered.
  */
 export function MetricToggle({
   current,
@@ -23,8 +28,18 @@ export function MetricToggle({
   const router = useRouter();
   const params = useSearchParams();
   const pathname = usePathname();
+  const [, startTransition] = useTransition();
+  const [pending, setPending] = useState<Metric | null>(null);
+
+  // Once the URL/server state catches up to where we wanted to go,
+  // drop the optimistic override.
+  useEffect(() => {
+    if (pending !== null && pending === current) setPending(null);
+  }, [pending, current]);
 
   if (!show.single || !show.average) return null;
+
+  const displayed: Metric = pending ?? current;
 
   const hrefFor = (metric: Metric) => {
     const sp = new URLSearchParams(params.toString());
@@ -41,7 +56,7 @@ export function MetricToggle({
       className="inline-flex border rule rounded-[2px] overflow-hidden font-body"
     >
       {(['average', 'single'] as const).map((m) => {
-        const active = current === m;
+        const active = displayed === m;
         return (
           <button
             key={m}
@@ -49,8 +64,11 @@ export function MetricToggle({
             aria-current={active ? 'true' : undefined}
             aria-pressed={active}
             onClick={() => {
-              if (active) return;
-              router.push(hrefFor(m), { scroll: false });
+              if (displayed === m) return;
+              setPending(m);
+              startTransition(() => {
+                router.push(hrefFor(m), { scroll: false });
+              });
             }}
             className={[
               'inline-flex items-center justify-center min-h-[44px] px-5 py-2',

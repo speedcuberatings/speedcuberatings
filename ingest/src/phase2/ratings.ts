@@ -12,14 +12,23 @@ const MIN_RESULTS = 3;          // require >= this many results in window
 
 /**
  * Bonus factors per the rating spec. At most one from each category
- * applies; the total maxes at +15% (low end of the spec's "15 to 17%").
+ * applies; the total maxes at +2%.
  *
- *   final            +2.65%
- *   gold/silver/bronze medal in final   +3.53 / +1.76 / +0.88%
- *   WR / continental / national record  +5.29 / +2.65 / +0.88%
- *   world / continental / national championship  +3.53 / +1.76 / +0.88%
+ * The spec in the source video states a max of "15 to 17%", but when we
+ * reverse-engineered James Macdiarmid's reference rankings we found his
+ * effective bonuses are ~10× smaller than that stated range. Calibrating
+ * against 11 reference values from his leaderboard image, a ~2% max cap
+ * gives mean absolute error of 0.45 (vs 1.22 at 15%) and matches 9 of 11
+ * competitors to within 0.5 points. We scale the nominal 17%-values by
+ * 2/17 to preserve the internal ordering (record > championship = medal
+ * > final).
+ *
+ *   final            +0.35%
+ *   gold/silver/bronze medal in final   +0.47 / +0.24 / +0.12%
+ *   WR / continental / national record  +0.71 / +0.35 / +0.12%
+ *   world / continental / national championship  +0.47 / +0.24 / +0.12%
  */
-const BONUS_SCALE = 15 / 17;
+const BONUS_SCALE = 2 / 17;
 const BONUS_FINAL = 0.03 * BONUS_SCALE;
 const BONUS_MEDAL = [0.04 * BONUS_SCALE, 0.02 * BONUS_SCALE, 0.01 * BONUS_SCALE] as const;
 const BONUS_RECORD = {

@@ -75,11 +75,16 @@ Translates the spec in `docs/Rubik's Cube Ranking_Ratings.txt`. Per (competitor,
 
 1. Collect last-2-year results. Exclude if fewer than 3.
 2. For each result, compute a Kinch-style score: `100 × (WR_value / result_value)`. WR is the all-time minimum of the same metric used for scoring (`average` if the event is averaged, else `best`).
-3. Multiply by bonus factor (max +15%, the low end of the spec's "15 to 17%" range):
+3. Multiply by bonus factor (max +2%, calibrated against James's reference values):
    - Final round + medal (gold/silver/bronze in final)
    - Highest of single-record or average-record (WR / continental / NR)
    - Championship scope (world / continental / national)
-   - Exact weights are in `ingest/src/phase2/ratings.ts` and preserve the record > championship = medal > final ordering.
+   - The source video states "max 15 to 17%" but the reference leaderboard
+     values were generated with effective bonuses ~10× smaller. We calibrated
+     `BONUS_SCALE = 2/17` by sweeping values against 11 reference figures —
+     see `scripts/sweep-rating.ts` and the comment block at the top of
+     `ingest/src/phase2/ratings.ts`.
+   - Exact weights preserve the record > championship = medal > final ordering.
 4. Weight by `0.99 ^ days_since_competition`. Take weighted mean → raw rating.
 5. If days since most recent result > 90, multiply by `0.995 ^ (days − 90)`.
 6. At the two-year cutoff the competitor drops out naturally (no results in window).

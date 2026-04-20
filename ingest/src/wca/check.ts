@@ -13,7 +13,7 @@ export interface WcaExportMetadata {
 
 const WCA_EXPORT_API = 'https://www.worldcubeassociation.org/api/v0/export/public';
 const USER_AGENT =
-  'speedcuberatings-ingest/0.1 (+https://github.com/<owner>/speedcuberatings)';
+  'speedcuberatings-ingest/0.1 (+https://github.com/speedcuberatings/speedcuberatings)';
 
 /**
  * Fetch the public export metadata.

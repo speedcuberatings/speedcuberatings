@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p .",
-    "check": "tsx src/check.ts",
+    "check": "tsx src/wca/check.ts",
     "ingest": "tsx src/index.ts"
   },
   "dependencies": {

@@ -28,6 +28,9 @@ const jbMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://speedcuberatings.com',
+  ),
   title: {
     default: 'SCR — Speedcube Ratings',
     template: '%s · SCR',

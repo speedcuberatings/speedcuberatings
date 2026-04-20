@@ -2,7 +2,23 @@
   "name": "speedcuberatings",
   "private": true,
   "version": "0.0.0",
-  "description": "WCA-synced speedcubing ratings site",
+  "description": "Performance-rating leaderboard for speedcubing, derived from official WCA results. Rating model by James Macdiarmid.",
+  "license": "MIT",
+  "homepage": "https://github.com/speedcuberatings/speedcuberatings",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/speedcuberatings/speedcuberatings.git"
+  },
+  "bugs": {
+    "url": "https://github.com/speedcuberatings/speedcuberatings/issues"
+  },
+  "keywords": [
+    "speedcubing",
+    "rubiks-cube",
+    "wca",
+    "leaderboard",
+    "ratings"
+  ],
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=20"

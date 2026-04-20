@@ -13,7 +13,7 @@ export interface DownloadedExport {
 }
 
 const USER_AGENT =
-  'speedcuberatings-ingest/0.1 (+https://github.com/<owner>/speedcuberatings)';
+  'speedcuberatings-ingest/0.1 (+https://github.com/speedcuberatings/speedcuberatings)';
 
 /**
  * Download and unzip the TSV export into a fresh temporary directory.

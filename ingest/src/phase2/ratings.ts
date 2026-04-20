@@ -4,7 +4,12 @@ import { Readable } from 'node:stream';
 import { makeClient, makePool } from '../db.ts';
 import { log } from '../log.ts';
 
-/** Rating-model constants (see docs/Rubik's Cube Ranking_Ratings.txt). */
+/**
+ * Rating-model constants. The model is by James Macdiarmid, proposed in
+ * his video "Our ranking system is broken. Let's fix it!"
+ * (https://www.youtube.com/watch?v=2lU-d6OUU3Q). This implementation is
+ * calibrated against the reference leaderboard shown in that video.
+ */
 const WEIGHT_BASE = 0.99;       // per day
 const INACTIVITY_BASE = 0.995;  // per day beyond grace
 const INACTIVITY_GRACE_DAYS = 90;

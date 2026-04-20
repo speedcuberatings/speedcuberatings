@@ -66,8 +66,11 @@ export default function AboutPage() {
         </p>
         <ol className="list-decimal pl-5 space-y-3 marker:text-[var(--color-accent)]">
           <li>
-            Take every round result from the last 24 months. At least 3 are
-            required to appear.
+            Take every round result from the competitor&rsquo;s last 24
+            months in the event, counting back from their most recent
+            competition rather than from today. At least 3 results are
+            required to appear. If their latest round is itself older than
+            24 months they drop off the list entirely.
           </li>
           <li>
             Normalise each round into a Kinch-style score:{' '}
@@ -95,11 +98,16 @@ export default function AboutPage() {
             Take the weighted mean. This is the raw rating.
           </li>
           <li>
-            If a competitor hasn&rsquo;t competed in more than 90 days, the
-            rating starts to decay by{' '}
-            <code className="font-mono text-[15px]">0.995 ^ (days − 90)</code>
-            . Competitors with no results in the 24-month window drop off the
-            list.
+            If a competitor hasn&rsquo;t entered the event for a while, the
+            rating starts to decay. The grace period depends on how often the
+            event is typically held: <strong>90 days</strong> for frequent
+            events (3×3, 2×2, OH, pyraminx, skewb, square-1),{' '}
+            <strong>180 days</strong> for the bigger cubes, clock, megaminx
+            and 3-blind, and <strong>365 days</strong> for the rare events
+            (FMC, multi-blind, 4- and 5-blind) that are mostly only scheduled
+            at larger competitions. After the grace the rating multiplies by{' '}
+            <code className="font-mono text-[15px]">0.995 ^ (days − grace)</code>
+            .
           </li>
           <li>
             Rank by rating within each event and metric using standard sports
@@ -147,6 +155,27 @@ export default function AboutPage() {
           than it reveals. The region filter narrows the leaderboard to a
           continent or country; global ranks are preserved when filtered, so
           the top European 3×3 cuber can still be #3 in the world.
+        </p>
+
+        <h2
+          className="pt-6 font-display text-[1.75rem] text-[var(--color-ink)]"
+          style={{
+            fontVariationSettings: '"opsz" 72, "SOFT" 30, "wght" 500',
+            letterSpacing: '-0.015em',
+          }}
+        >
+          Known gaps
+        </h2>
+        <p>
+          <strong>DNFs are not yet factored in.</strong> The pipeline currently
+          drops DNF rounds before computing a rating, which means reliability
+          isn&rsquo;t reflected. For 3×3 and the other fast events this barely
+          matters, but for BLD, FMC, multi and clock it overstates unreliable
+          solvers. The fix, following the spec author&rsquo;s suggestion, is a
+          per-event DNF-rate coefficient that discounts ratings proportionally
+          to how often someone fails attempts in the window. We&rsquo;re not
+          shipping a number until it&rsquo;s calibrated properly; until then,
+          treat blind-event ratings with an extra grain of salt.
         </p>
 
         <h2

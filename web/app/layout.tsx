@@ -99,22 +99,34 @@ function SiteHeader() {
 function SiteFooter() {
   return (
     <footer className="border-t rule mt-24">
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-8 py-10 flex flex-col md:flex-row gap-4 justify-between text-[13px] text-[var(--color-muted)]">
-        <p className="max-w-[52ch] leading-relaxed">
-          This information is based on competition results owned and
-          maintained by the World Cube Association, published at{' '}
-          <a
-            href="https://worldcubeassociation.org/results"
-            className="ink-link"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            worldcubeassociation.org/results
-          </a>
-          . Ratings are computed independently and not affiliated with the
-          WCA.
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-8 py-10 grid md:grid-cols-[1fr_auto] gap-6 text-[13px] text-[var(--color-muted)]">
+        <div className="space-y-3 max-w-[62ch]">
+          <p className="leading-relaxed">
+            Rating model by{' '}
+            <a
+              href="https://www.youtube.com/watch?v=2lU-d6OUU3Q"
+              className="ink-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              James Macdiarmid
+            </a>
+            . Based on competition results maintained by the World Cube
+            Association, published at{' '}
+            <a
+              href="https://worldcubeassociation.org/results"
+              className="ink-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              worldcubeassociation.org/results
+            </a>
+            . Ratings computed independently; not affiliated with the WCA.
+          </p>
+        </div>
+        <p className="eyebrow md:self-end md:text-right">
+          Issue № {new Date().getFullYear()}
         </p>
-        <p className="eyebrow md:self-end">Issue № {new Date().getFullYear()}</p>
       </div>
     </footer>
   );

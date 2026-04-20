@@ -116,9 +116,20 @@ export default function AboutPage() {
           Acknowledgements
         </h2>
         <p>
-          The rating design is inspired by the video{' '}
-          <em>Our ranking system is broken</em>. The WCA maintains the data.
-          Implementation is{' '}
+          The rating model is the work of{' '}
+          <strong>James Macdiarmid</strong>, proposed in his video{' '}
+          <a
+            href="https://www.youtube.com/watch?v=2lU-d6OUU3Q"
+            className="ink-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <em>Our ranking system is broken</em>
+          </a>
+          . This site is a faithful implementation of the spec he described
+          there — if you have thoughts on the model itself, they belong with
+          him, not us. The WCA maintains the underlying competition data.
+          Implementation of this site is{' '}
           <a
             href="https://github.com/speedcuberatings/speedcuberatings"
             className="ink-link"

@@ -2,7 +2,7 @@
 
 A public, always-up-to-date performance-rating leaderboard for the speedcubing community, built on top of the official WCA results export.
 
-See `docs/Rubik's Cube Ranking_Ratings.txt` for the rating model spec.
+The rating model is by **James Macdiarmid**, proposed in his video [_Our ranking system is broken_](https://www.youtube.com/watch?v=2lU-d6OUU3Q). This project implements his spec. See `docs/Rubik's Cube Ranking_Ratings.txt` for the transcript.
 
 ## Status
 

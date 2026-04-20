@@ -18,3 +18,4 @@ out/
 # meant to be distributed with the repo. Drop things here instead of
 # adding one-off patterns above.
 /local/
+.vercel

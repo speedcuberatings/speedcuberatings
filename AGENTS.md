@@ -34,14 +34,37 @@ pnpm --filter @scr/web lint
 # Rating tools
 DATABASE_URL=… npx tsx scripts/verify-rating.ts <wcaId>
 DATABASE_URL=… npx tsx scripts/sweep-rating.ts
+
+# DB identity check — confirms which Neon project a given DATABASE_URL
+# actually points at. Useful after rotating Vercel or GH Actions secrets.
+DATABASE_URL=… npx tsx scripts/check-db-identity.ts
 ```
 
 ## Secrets / env vars
 
 - `DATABASE_URL` — Postgres connection string with `sslmode=require`.
-  - Local: put in `.env` at the repo root.
-  - GitHub Actions: repo secret of the same name.
-  - Web (Vercel): same.
+  All three slots must point at the **same** Neon project:
+  - Local: `.env` at the repo root.
+  - GitHub Actions: repo secret of the same name (used by
+    `.github/workflows/ingest.yml`).
+  - Web (Vercel): environment variable on the `speedcuberatings-web`
+    project under the Production and Preview scopes. Marked "Sensitive"
+    in the Vercel UI, so the value cannot be read back after saving —
+    only overwritten.
+- **Canonical DB**: single Neon project `ep-calm-credit-amwcaln3`
+  (`neondb`, pooled connection). Historically a separate `ep-late-union`
+  "prod" project existed; it was retired on 2026-04-20 after an audit
+  found Vercel and GH Actions had drifted onto different projects,
+  which caused a multi-hour "why is the site stale?" debugging episode.
+  If you need a sandbox, create a **Neon branch** off this project,
+  not a second project.
+- **Whenever you rotate any of the three slots**, run
+  `scripts/check-db-identity.ts` against the new value and against the
+  other two slots (trigger a GH workflow_dispatch on `ingest.yml` and
+  confirm `scr._meta.last_import_started` moves; deploy a preview on
+  Vercel if you need to verify the web slot). The script prints only
+  non-secret fields (host, project slug, ingest timestamps, top-3 333
+  average) so output can be pasted anywhere safely.
 
 ## Schema conventions
 

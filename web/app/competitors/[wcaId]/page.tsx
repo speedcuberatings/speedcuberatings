@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Flag } from '@/components/Flag';
-import { RatingHistoryChart } from '@/components/RatingHistoryChart';
+import { ProfileEventCard } from '@/components/ProfileEventCard';
 import {
   getCompetitor,
   getCompetitorRatings,
@@ -12,9 +12,7 @@ import {
   type Metric,
 } from '@/lib/queries';
 import {
-  eventLabel,
   formatResult,
-  formatRating,
   formatDate,
   roundLabel,
 } from '@/lib/format';
@@ -39,9 +37,12 @@ interface EventGroup {
   eventId: string;
   eventName: string;
   eventRank: number;
-  primary: CompetitorEventRating;
-  secondary: CompetitorEventRating | null;
+  defaultMetric: Metric;
+  single: CompetitorEventRating | null;
+  average: CompetitorEventRating | null;
 }
+
+const SINGLE_DEFAULT_EVENTS = new Set(['333bf', '444bf', '555bf', '333mbf', '333fm']);
 
 export default async function CompetitorPage({ params }: PageProps) {
   const { wcaId } = await params;
@@ -56,14 +57,18 @@ export default async function CompetitorPage({ params }: PageProps) {
 
   const groups = groupRatingsByEvent(allRatings);
 
-  // Fetch history for the primary metric of each event the competitor is rated in.
+  // Fetch histories for both metrics per event (cheap — only one month of snapshots right now).
   const histories = await Promise.all(
-    groups.map(async (g) => ({
-      key: `${g.eventId}:${g.primary.metric}`,
-      history: await getRatingHistory(wcaId, g.eventId, g.primary.metric),
-    })),
+    groups.flatMap((g) => [
+      getRatingHistory(wcaId, g.eventId, 'single').then(
+        (h) => [`${g.eventId}:single`, h] as const,
+      ),
+      getRatingHistory(wcaId, g.eventId, 'average').then(
+        (h) => [`${g.eventId}:average`, h] as const,
+      ),
+    ]),
   );
-  const historyByKey = new Map(histories.map((h) => [h.key, h.history]));
+  const historyByKey = new Map(histories);
 
   const eventNameById = new Map(events.map((e) => [e.id, e.name] as const));
   const eventFormatById = new Map(events.map((e) => [e.id, e.format] as const));
@@ -122,77 +127,19 @@ export default async function CompetitorPage({ params }: PageProps) {
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 py-12">
-          {groups.map((g, idx) => {
-            const history = historyByKey.get(`${g.eventId}:${g.primary.metric}`) ?? [];
-            const primary = g.primary;
-            const secondary = g.secondary;
-            const primaryDecayed = primary.rating < primary.raw_rating - 0.5;
-
-            return (
-              <article
-                key={g.eventId}
-                className="reveal border-t rule pt-6"
-                style={{ '--i': idx } as React.CSSProperties}
-              >
-                <div className="flex items-baseline justify-between gap-6">
-                  <div>
-                    <p className="eyebrow mb-1 flex items-baseline gap-2">
-                      <i
-                        className={`cubing-icon event-${g.eventId}`}
-                        style={{ fontSize: 16, lineHeight: 1 }}
-                        aria-hidden="true"
-                      />
-                      <span>{eventLabel(g.eventId, g.eventName)}</span>
-                      <span className="text-[var(--color-mute-2)] !tracking-[0.1em]">
-                        · {metricLabel(primary.metric)}
-                      </span>
-                    </p>
-                    <p
-                      className="font-display text-[2.25rem] leading-none text-[var(--color-ink)]"
-                      style={{
-                        fontVariationSettings: '"opsz" 144, "SOFT" 40, "wght" 420',
-                        letterSpacing: '-0.02em',
-                      }}
-                    >
-                      #{primary.rank.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className="font-mono tnum text-[2.25rem] leading-none text-[var(--color-ink)]"
-                    >
-                      {formatRating(primary.rating)}
-                    </p>
-                    {primaryDecayed && (
-                      <p
-                        className="mt-1 font-mono tnum text-[11px] text-[var(--color-mute-2)]"
-                        title="Raw rating before inactivity decay"
-                      >
-                        raw {formatRating(primary.raw_rating)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-4 flex items-end justify-between gap-4">
-                  <div className="space-y-1">
-                    <p className="font-mono tnum text-[11px] text-[var(--color-muted)]">
-                      {primary.result_count} results · last {formatDate(primary.last_competed_at)}
-                    </p>
-                    {secondary && (
-                      <p className="font-mono tnum text-[11px] text-[var(--color-mute-2)]">
-                        {metricLabel(secondary.metric)}:{' '}
-                        <span className="text-[var(--color-muted)]">
-                          {formatRating(secondary.rating)}
-                        </span>{' '}
-                        · #{secondary.rank.toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                  <RatingHistoryChart data={history} width={160} height={40} />
-                </div>
-              </article>
-            );
-          })}
+          {groups.map((g, idx) => (
+            <ProfileEventCard
+              key={g.eventId}
+              eventId={g.eventId}
+              eventName={g.eventName}
+              defaultMetric={g.defaultMetric}
+              single={g.single}
+              average={g.average}
+              historySingle={historyByKey.get(`${g.eventId}:single`) ?? []}
+              historyAverage={historyByKey.get(`${g.eventId}:average`) ?? []}
+              index={idx}
+            />
+          ))}
         </div>
       )}
 
@@ -266,10 +213,6 @@ export default async function CompetitorPage({ params }: PageProps) {
   );
 }
 
-function metricLabel(m: Metric): string {
-  return m === 'average' ? 'Average' : 'Single';
-}
-
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd'];
   const v = n % 100;
@@ -277,12 +220,10 @@ function ordinal(n: number): string {
 }
 
 /**
- * Collapse the raw per-(event, metric) rows into one card per event,
- * picking the "natural" primary metric for that event (averages for
- * Ao5/Mo3 events, single for BLD/FMC/multi).
+ * Collapse per-(event, metric) rows into one group per event that holds
+ * both metrics (either may be null).
  */
 function groupRatingsByEvent(rows: CompetitorEventRating[]): EventGroup[] {
-  const SINGLE_EVENTS = new Set(['333bf', '444bf', '555bf', '333mbf', '333fm']);
   const byEvent = new Map<string, CompetitorEventRating[]>();
   for (const r of rows) {
     const list = byEvent.get(r.event_id) ?? [];
@@ -293,16 +234,17 @@ function groupRatingsByEvent(rows: CompetitorEventRating[]): EventGroup[] {
   for (const [eventId, list] of byEvent) {
     const single = list.find((r) => r.metric === 'single') ?? null;
     const average = list.find((r) => r.metric === 'average') ?? null;
-    const primaryMetric: Metric = SINGLE_EVENTS.has(eventId) ? 'single' : 'average';
-    const primary =
-      (primaryMetric === 'single' ? single : average) ?? single ?? average!;
-    const secondary = primary === single ? average : single;
+    const anchor = (average ?? single)!;
+    const defaultMetric: Metric = SINGLE_DEFAULT_EVENTS.has(eventId)
+      ? 'single'
+      : 'average';
     groups.push({
       eventId,
-      eventName: primary.event_name,
-      eventRank: primary.event_rank,
-      primary,
-      secondary,
+      eventName: anchor.event_name,
+      eventRank: anchor.event_rank,
+      defaultMetric,
+      single,
+      average,
     });
   }
   return groups.sort((a, b) => a.eventRank - b.eventRank);

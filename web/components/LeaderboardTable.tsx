@@ -4,6 +4,11 @@ import { DeltaBadge } from './DeltaBadge';
 import type { LeaderboardRow } from '@/lib/queries';
 import { formatRating } from '@/lib/format';
 
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 /**
  * The centerpiece. A typeset leaderboard, not a dashboard table.
  *
@@ -71,14 +76,27 @@ export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
                     {r.name}
                   </span>
                 </div>
-                <div className="mt-1 flex items-center gap-2 text-[var(--color-muted)]">
-                  <Flag iso2={r.country_iso2} name={r.country_id} size={14} />
-                  <span className="eyebrow !tracking-[0.14em]">{r.country_id}</span>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[var(--color-muted)]">
+                  <span className="inline-flex items-center gap-2">
+                    <Flag iso2={r.country_iso2} name={r.country_id} size={14} />
+                    <span className="eyebrow !tracking-[0.14em]">{r.country_id}</span>
+                  </span>
                   <span aria-hidden="true" className="text-[10px] text-[var(--color-rule-strong)]">·</span>
                   <span className="font-mono tnum text-[11px] text-[var(--color-mute-2)]">
                     {r.result_count} results
                   </span>
                 </div>
+                {r.last_competition_name && (
+                  <div className="mt-0.5 font-mono text-[11px] text-[var(--color-mute-2)] truncate">
+                    last at{' '}
+                    <span className="text-[var(--color-muted)]">
+                      {r.last_competition_name}
+                    </span>
+                    {r.last_competition_city ? `, ${r.last_competition_city}` : ''}
+                    {' · '}
+                    {shortDate(r.last_competed_at)}
+                  </div>
+                )}
               </div>
 
               {/* Rating + delta */}

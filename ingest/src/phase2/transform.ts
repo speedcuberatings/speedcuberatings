@@ -30,6 +30,7 @@ export async function transform(): Promise<{
   competitors: number;
   results: number;
   countries: number;
+  competitions: number;
 }> {
   const client = await makeClient();
   try {
@@ -73,6 +74,36 @@ export async function transform(): Promise<{
       WHERE p.sub_id = '1'
     `);
 
+    // Competition metadata for the last N years. We rely on the same
+    // comp_date temp table built below for the date filter, so populate
+    // that first.
+    await client.query(`DROP TABLE IF EXISTS comp_date`);
+    await client.query(`
+      CREATE TEMP TABLE comp_date AS
+      SELECT id AS competition_id,
+             make_date(
+               coalesce(NULLIF(year, ''), '1970')::int,
+               coalesce(NULLIF(month, ''), '1')::int,
+               coalesce(NULLIF(day, ''), '1')::int
+             ) AS start_date,
+             make_date(
+               coalesce(NULLIF(end_year, ''), year)::int,
+               coalesce(NULLIF(end_month, ''), month)::int,
+               coalesce(NULLIF(end_day, ''), day)::int
+             ) AS end_date
+      FROM raw_wca.competitions
+    `);
+
+    const cutoff = `current_date - INTERVAL '${RESULTS_WINDOW_YEARS} years'`;
+
+    await client.query(`
+      INSERT INTO app_staging.competitions (id, name, city, country_id, start_date, end_date)
+      SELECT c.id, c.name, NULLIF(c.city_name, ''), c.country_id, cd.start_date, cd.end_date
+        FROM raw_wca.competitions c
+        JOIN comp_date cd ON cd.competition_id = c.id
+       WHERE cd.end_date >= ${cutoff}
+    `);
+
     // Build a competition -> championship_scope map. A single competition can
     // hold multiple championship types (e.g. Euro + a national); we pick the
     // highest-ranking scope.
@@ -93,20 +124,6 @@ export async function transform(): Promise<{
       GROUP BY competition_id
     `);
 
-    await client.query(`DROP TABLE IF EXISTS comp_date`);
-    await client.query(`
-      CREATE TEMP TABLE comp_date AS
-      SELECT id AS competition_id,
-             make_date(
-               coalesce(NULLIF(end_year, ''), year)::int,
-               coalesce(NULLIF(end_month, ''), month)::int,
-               coalesce(NULLIF(end_day, ''), day)::int
-             ) AS competition_date
-      FROM raw_wca.competitions
-    `);
-
-    const cutoff = `current_date - INTERVAL '${RESULTS_WINDOW_YEARS} years'`;
-
     await client.query(`
       INSERT INTO app_staging.official_results (
         result_id, competitor_id, competition_id, event_id, round_type_id,
@@ -126,14 +143,14 @@ export async function transform(): Promise<{
              r.pos::int,
              NULLIF(NULLIF(r.regional_single_record, ''), 'NULL'),
              NULLIF(NULLIF(r.regional_average_record, ''), 'NULL'),
-             cd.competition_date,
+             cd.end_date AS competition_date,
              cc.scope_rank IS NOT NULL AS is_championship,
              CASE cc.scope_rank WHEN 3 THEN 'world' WHEN 2 THEN 'continental' WHEN 1 THEN 'national' END
       FROM raw_wca.results r
       JOIN comp_date cd ON cd.competition_id = r.competition_id
       JOIN raw_wca.round_types rt ON rt.id = r.round_type_id
       LEFT JOIN comp_championship cc ON cc.competition_id = r.competition_id
-      WHERE cd.competition_date >= ${cutoff}
+      WHERE cd.end_date >= ${cutoff}
         AND r.best::int > 0
     `);
 
@@ -142,9 +159,10 @@ export async function transform(): Promise<{
 
     const counts = await client.query<{ t: string; n: string }>(`
       SELECT 'events' AS t, count(*)::text AS n FROM app_staging.events
-      UNION ALL SELECT 'competitors', count(*)::text FROM app_staging.competitors
-      UNION ALL SELECT 'countries',   count(*)::text FROM app_staging.countries
-      UNION ALL SELECT 'results',     count(*)::text FROM app_staging.official_results
+      UNION ALL SELECT 'competitors',  count(*)::text FROM app_staging.competitors
+      UNION ALL SELECT 'competitions', count(*)::text FROM app_staging.competitions
+      UNION ALL SELECT 'countries',    count(*)::text FROM app_staging.countries
+      UNION ALL SELECT 'results',      count(*)::text FROM app_staging.official_results
     `);
     const by = Object.fromEntries(counts.rows.map((r) => [r.t, Number(r.n)]));
     log.info('phase2: transform complete', by);
@@ -153,6 +171,7 @@ export async function transform(): Promise<{
       competitors: number;
       results: number;
       countries: number;
+      competitions: number;
     };
   } finally {
     await client.end();

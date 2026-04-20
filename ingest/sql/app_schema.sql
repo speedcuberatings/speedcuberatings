@@ -41,6 +41,20 @@ CREATE TABLE app_staging.competitors (
 
 CREATE INDEX competitors_country_idx ON app_staging.competitors (country_id);
 
+-- Competitions, restricted to the last N years (matches the results window).
+-- Stored so the web app can render "last at <Competition>" without touching
+-- raw_wca.
+CREATE TABLE app_staging.competitions (
+  id          text PRIMARY KEY,
+  name        text NOT NULL,
+  city        text,
+  country_id  text,
+  start_date  date,
+  end_date    date
+);
+
+CREATE INDEX competitions_end_date_idx ON app_staging.competitions (end_date DESC);
+
 -- Flattened, typed view of official WCA results from the last N years.
 -- Enriched with competition date and championship scope for easy consumption
 -- by the rating pipeline.
@@ -70,14 +84,15 @@ CREATE INDEX official_results_competitor_event_idx
 -- One row per (competitor, event, metric). `metric` is 'single' or 'average'.
 -- Most events have both; some (multi, FMC-single context) only one.
 CREATE TABLE app_staging.current_ratings (
-  competitor_id     text NOT NULL,
-  event_id          text NOT NULL,
-  metric            text NOT NULL,   -- 'single' | 'average'
-  rating            numeric(6,2) NOT NULL,
-  raw_rating        numeric(6,2) NOT NULL,
-  result_count      int NOT NULL,
-  last_competed_at  date NOT NULL,
-  rank              int,
+  competitor_id         text NOT NULL,
+  event_id              text NOT NULL,
+  metric                text NOT NULL,   -- 'single' | 'average'
+  rating                numeric(6,2) NOT NULL,
+  raw_rating            numeric(6,2) NOT NULL,
+  result_count          int NOT NULL,
+  last_competed_at      date NOT NULL,
+  last_competition_id   text,            -- references app_staging.competitions(id); nullable
+  rank                  int,
   PRIMARY KEY (competitor_id, event_id, metric),
   CHECK (metric IN ('single','average'))
 );

@@ -23,6 +23,9 @@ export interface LeaderboardRow {
   raw_rating: number;
   result_count: number;
   last_competed_at: string;
+  last_competition_id: string | null;
+  last_competition_name: string | null;
+  last_competition_city: string | null;
   previous_rank: number | null;
   delta: number | null;
 }
@@ -137,6 +140,9 @@ export async function getLeaderboard(
            cr.raw_rating::float8 AS raw_rating,
            cr.result_count,
            cr.last_competed_at,
+           cr.last_competition_id,
+           comp.name AS last_competition_name,
+           comp.city AS last_competition_city,
            prev.rank AS previous_rank,
            CASE WHEN prev.rank IS NULL THEN NULL
                 ELSE (prev.rank - cr.rank)::int
@@ -144,6 +150,7 @@ export async function getLeaderboard(
       FROM app.current_ratings cr
       JOIN app.competitors c ON c.wca_id = cr.competitor_id
       LEFT JOIN app.countries co ON co.id = c.country_id
+      LEFT JOIN app.competitions comp ON comp.id = cr.last_competition_id
       LEFT JOIN prev ON prev.competitor_id = cr.competitor_id
                     AND prev.event_id    = cr.event_id
                     AND prev.metric      = cr.metric

@@ -72,6 +72,7 @@ interface ResultRow {
   is_championship: boolean;
   championship_scope: string | null;
   competition_date: Date;
+  competition_id: string;
 }
 
 interface Accumulator {
@@ -79,6 +80,7 @@ interface Accumulator {
   weightSum: number;
   count: number;
   lastDate: Date;
+  lastCompetitionId: string;
 }
 
 /**
@@ -120,7 +122,7 @@ export async function computeRatings(): Promise<{
   try {
     const copyStream = client.query(
       copyFrom.from(
-        `COPY app_staging.current_ratings (competitor_id, event_id, metric, rating, raw_rating, result_count, last_competed_at)
+        `COPY app_staging.current_ratings (competitor_id, event_id, metric, rating, raw_rating, result_count, last_competed_at, last_competition_id)
          FROM STDIN WITH (FORMAT text, NULL '', DELIMITER E'\\t')`,
       ),
     );
@@ -204,6 +206,7 @@ async function computeEventMetric(
       is_championship: boolean;
       championship_scope: string | null;
       competition_date: Date;
+      competition_id: string;
     }>(
       `SELECT competitor_id,
               ${col} AS metric_value,
@@ -214,7 +217,8 @@ async function computeEventMetric(
               regional_average_record AS rar,
               is_championship,
               championship_scope,
-              competition_date
+              competition_date,
+              competition_id
          FROM app_staging.official_results
         WHERE event_id = $1 AND ${col} IS NOT NULL AND ${col} > 0`,
       [eventId],
@@ -232,6 +236,7 @@ async function computeEventMetric(
         is_championship: r.is_championship,
         championship_scope: r.championship_scope,
         competition_date: r.competition_date,
+        competition_id: r.competition_id,
       };
       const score = 100 * (wr / r.metric_value);
       const mult = bonusMultiplier(row);
@@ -240,13 +245,22 @@ async function computeEventMetric(
 
       let a = acc.get(r.competitor_id);
       if (!a) {
-        a = { weightedScoreSum: 0, weightSum: 0, count: 0, lastDate: r.competition_date };
+        a = {
+          weightedScoreSum: 0,
+          weightSum: 0,
+          count: 0,
+          lastDate: r.competition_date,
+          lastCompetitionId: r.competition_id,
+        };
         acc.set(r.competitor_id, a);
       }
       a.weightedScoreSum += boosted * weight;
       a.weightSum += weight;
       a.count += 1;
-      if (r.competition_date > a.lastDate) a.lastDate = r.competition_date;
+      if (r.competition_date > a.lastDate) {
+        a.lastDate = r.competition_date;
+        a.lastCompetitionId = r.competition_id;
+      }
     }
   } finally {
     await client.end();
@@ -268,9 +282,9 @@ async function computeEventMetric(
         : 1;
     const rating = raw * decay;
 
-    // TSV row: competitor \t event \t metric \t rating \t raw \t count \t last_date
+    // TSV row: competitor \t event \t metric \t rating \t raw \t count \t last_date \t last_competition_id
     out.push(
-      `${competitor}\t${eventId}\t${metric}\t${rating.toFixed(2)}\t${raw.toFixed(2)}\t${a.count}\t${lastDate.toISOString().slice(0, 10)}\n`,
+      `${competitor}\t${eventId}\t${metric}\t${rating.toFixed(2)}\t${raw.toFixed(2)}\t${a.count}\t${lastDate.toISOString().slice(0, 10)}\t${a.lastCompetitionId}\n`,
     );
     kept += 1;
   }

@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Fraunces, Manrope, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+import '@cubing/icons';
+import { RandomFavicon } from '@/components/RandomFavicon';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -41,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${fraunces.variable} ${manrope.variable} ${jbMono.variable}`}
     >
       <body>
+        <RandomFavicon />
         <div className="relative z-10 flex min-h-dvh flex-col">
           <SiteHeader />
           <main className="flex-1">{children}</main>
@@ -99,33 +102,28 @@ function SiteHeader() {
 function SiteFooter() {
   return (
     <footer className="border-t rule mt-24">
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-8 py-10 grid md:grid-cols-[1fr_auto] gap-6 text-[13px] text-[var(--color-muted)]">
-        <div className="space-y-3 max-w-[62ch]">
-          <p className="leading-relaxed">
-            Rating model by{' '}
-            <a
-              href="https://www.youtube.com/watch?v=2lU-d6OUU3Q"
-              className="ink-link"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              James Macdiarmid
-            </a>
-            . Based on competition results maintained by the World Cube
-            Association, published at{' '}
-            <a
-              href="https://worldcubeassociation.org/results"
-              className="ink-link"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              worldcubeassociation.org/results
-            </a>
-            . Ratings computed independently; not affiliated with the WCA.
-          </p>
-        </div>
-        <p className="eyebrow md:self-end md:text-right">
-          Issue № {new Date().getFullYear()}
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-8 py-10 text-[13px] text-[var(--color-muted)]">
+        <p className="max-w-[64ch] leading-relaxed">
+          Rating model by{' '}
+          <a
+            href="https://www.youtube.com/watch?v=2lU-d6OUU3Q"
+            className="ink-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            James Macdiarmid
+          </a>
+          . Based on competition results maintained by the World Cube
+          Association, published at{' '}
+          <a
+            href="https://worldcubeassociation.org/results"
+            className="ink-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            worldcubeassociation.org/results
+          </a>
+          . Ratings computed independently; not affiliated with the WCA.
         </p>
       </div>
     </footer>

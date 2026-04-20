@@ -15,6 +15,22 @@ CREATE TABLE app_staging.events (
   rateable   boolean NOT NULL
 );
 
+CREATE TABLE app_staging.continents (
+  id           text PRIMARY KEY,   -- e.g. '_Europe'
+  name         text NOT NULL,      -- 'Europe'
+  record_name  text                -- 'ER', 'AsR', etc; nullable
+);
+
+CREATE TABLE app_staging.countries (
+  id              text PRIMARY KEY,   -- WCA country name, e.g. 'China'
+  iso2            text,               -- may be null for historical/special codes
+  name            text NOT NULL,
+  continent_id    text REFERENCES app_staging.continents(id),
+  continent_name  text
+);
+
+CREATE INDEX countries_continent_idx ON app_staging.countries (continent_id);
+
 CREATE TABLE app_staging.competitors (
   wca_id       text PRIMARY KEY,
   name         text NOT NULL,
@@ -22,6 +38,8 @@ CREATE TABLE app_staging.competitors (
   country_iso2 text,            -- ISO 3166-1 alpha-2, nullable for non-ISO regions
   gender       text
 );
+
+CREATE INDEX competitors_country_idx ON app_staging.competitors (country_id);
 
 -- Flattened, typed view of official WCA results from the last N years.
 -- Enriched with competition date and championship scope for easy consumption
@@ -35,13 +53,13 @@ CREATE TABLE app_staging.official_results (
   is_final               boolean NOT NULL,
   best                   int,
   average                int,
-  metric_value           int,               -- average if > 0 else best; units depend on event format
+  metric_value           int,               -- average if > 0 else best; kept for backward-compat
   position               int,
-  regional_single_record text,              -- WR | NR | continental code | NULL
+  regional_single_record text,
   regional_average_record text,
   competition_date       date   NOT NULL,
   is_championship        boolean NOT NULL,
-  championship_scope     text               -- 'world' | 'continental' | 'national' | NULL
+  championship_scope     text
 );
 
 CREATE INDEX official_results_event_date_idx
@@ -49,19 +67,25 @@ CREATE INDEX official_results_event_date_idx
 CREATE INDEX official_results_competitor_event_idx
   ON app_staging.official_results (competitor_id, event_id);
 
+-- One row per (competitor, event, metric). `metric` is 'single' or 'average'.
+-- Most events have both; some (multi, FMC-single context) only one.
 CREATE TABLE app_staging.current_ratings (
   competitor_id     text NOT NULL,
   event_id          text NOT NULL,
+  metric            text NOT NULL,   -- 'single' | 'average'
   rating            numeric(6,2) NOT NULL,
-  raw_rating        numeric(6,2) NOT NULL,  -- pre-inactivity-decay
+  raw_rating        numeric(6,2) NOT NULL,
   result_count      int NOT NULL,
   last_competed_at  date NOT NULL,
   rank              int,
-  PRIMARY KEY (competitor_id, event_id)
+  PRIMARY KEY (competitor_id, event_id, metric),
+  CHECK (metric IN ('single','average'))
 );
 
-CREATE INDEX current_ratings_event_rank_idx
-  ON app_staging.current_ratings (event_id, rank);
+CREATE INDEX current_ratings_event_metric_rank_idx
+  ON app_staging.current_ratings (event_id, metric, rank);
+CREATE INDEX current_ratings_country_join_idx
+  ON app_staging.current_ratings (competitor_id);
 
 -- Tracks when we last wrote a monthly snapshot, so repeat runs within the
 -- same month don't produce duplicate history rows.
@@ -73,6 +97,10 @@ INSERT INTO scr.rating_snapshot_state (id) VALUES (1) ON CONFLICT (id) DO NOTHIN
 
 -- Rating history lives in the `scr` schema (not `app`) so it survives the
 -- atomic swap of `app_staging` -> `app`. Managed by snapshot.ts.
+--
+-- Schema evolution: we added a `metric` column mid-April 2026. Older rows
+-- (pre-change) are all 'average' since that was the only metric computed.
+-- The DO block below is a one-shot backfill that runs idempotently.
 CREATE TABLE IF NOT EXISTS scr.rating_history (
   snapshot_date  date NOT NULL,
   competitor_id  text NOT NULL,
@@ -81,5 +109,33 @@ CREATE TABLE IF NOT EXISTS scr.rating_history (
   rank           int,
   PRIMARY KEY (snapshot_date, competitor_id, event_id)
 );
-CREATE INDEX IF NOT EXISTS rating_history_event_date_idx
-  ON scr.rating_history (event_id, snapshot_date DESC);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'scr' AND table_name = 'rating_history'
+       AND column_name = 'metric'
+  ) THEN
+    ALTER TABLE scr.rating_history ADD COLUMN metric text;
+    -- Backfill existing rows. Pre-schema-change runs computed 'average' for
+    -- every event where it made sense, 'single' for BLD events / FMC / multi.
+    UPDATE scr.rating_history
+       SET metric = CASE
+         WHEN event_id IN ('333bf','444bf','555bf','333mbf','333fm') THEN 'single'
+         ELSE 'average'
+       END
+     WHERE metric IS NULL;
+    ALTER TABLE scr.rating_history ALTER COLUMN metric SET NOT NULL;
+    ALTER TABLE scr.rating_history
+      ADD CONSTRAINT rating_history_metric_chk CHECK (metric IN ('single','average'));
+    -- Rewrite PK to include metric.
+    ALTER TABLE scr.rating_history DROP CONSTRAINT rating_history_pkey;
+    ALTER TABLE scr.rating_history
+      ADD CONSTRAINT rating_history_pkey
+      PRIMARY KEY (snapshot_date, competitor_id, event_id, metric);
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS rating_history_event_metric_date_idx
+  ON scr.rating_history (event_id, metric, snapshot_date DESC);

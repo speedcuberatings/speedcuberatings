@@ -41,6 +41,9 @@ importers:
 
   web:
     dependencies:
+      '@cubing/icons':
+        specifier: ^3.0.5
+        version: 3.0.5
       '@neondatabase/serverless':
         specifier: ^0.10.4
         version: 0.10.4
@@ -81,6 +84,9 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
+
+  '@cubing/icons@3.0.5':
+    resolution: {integrity: sha512-LA3BW9vf012HSN1FyeKXuDnOOnMeUXDDaXfAn4V9l06BFeMaHWiQGFF1Zod22r24TG/imQVhl4env1+jpkDzAw==}
 
   '@emnapi/runtime@1.10.0':
     resolution: {integrity: sha512-ewvYlk86xUoGI0zQRNq/mC+16R1QeDlKQy21Ki3oSYXNgLb45GV1P6A0M+/s6nyCuNDqe5VpaY84BzXGwVbwFA==}
@@ -914,6 +920,8 @@ packages:
 snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
+
+  '@cubing/icons@3.0.5': {}
 
   '@emnapi/runtime@1.10.0':
     dependencies:

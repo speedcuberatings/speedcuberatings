@@ -27,8 +27,8 @@ export async function maybeSnapshot(): Promise<boolean> {
     // month-start date. ON CONFLICT DO NOTHING is belt-and-suspenders in case
     // the state table and history drift.
     await pool.query(
-      `INSERT INTO scr.rating_history (snapshot_date, competitor_id, event_id, rating, rank)
-       SELECT $1::date, competitor_id, event_id, rating, rank
+      `INSERT INTO scr.rating_history (snapshot_date, competitor_id, event_id, metric, rating, rank)
+       SELECT $1::date, competitor_id, event_id, metric, rating, rank
        FROM app.current_ratings
        ON CONFLICT DO NOTHING`,
       [firstOfMonth.toISOString().slice(0, 10)],

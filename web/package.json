@@ -10,6 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@cubing/icons": "^3.0.5",
     "@neondatabase/serverless": "^0.10.4",
     "next": "^15.0.3",
     "react": "^19.0.0",

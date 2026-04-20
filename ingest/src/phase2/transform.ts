@@ -29,6 +29,7 @@ export async function transform(): Promise<{
   events: number;
   competitors: number;
   results: number;
+  countries: number;
 }> {
   const client = await makeClient();
   try {
@@ -39,6 +40,25 @@ export async function transform(): Promise<{
       SELECT id, name, format, rank::int,
              id IN (${rateableList}) AS rateable
       FROM raw_wca.events
+    `);
+
+    await client.query(`
+      INSERT INTO app_staging.continents (id, name, record_name)
+      SELECT id, name, NULLIF(record_name, '')
+      FROM raw_wca.continents
+    `);
+
+    // Countries: map WCA's country id (usually the English name) to its
+    // continent and an ISO2 code. `raw_wca.countries` is the source.
+    await client.query(`
+      INSERT INTO app_staging.countries (id, iso2, name, continent_id, continent_name)
+      SELECT c.id,
+             NULLIF(c.iso2, '')       AS iso2,
+             c.name,
+             c.continent_id,
+             cont.name                AS continent_name
+      FROM raw_wca.countries c
+      LEFT JOIN raw_wca.continents cont ON cont.id = c.continent_id
     `);
 
     await client.query(`
@@ -53,6 +73,13 @@ export async function transform(): Promise<{
       WHERE p.sub_id = '1'
     `);
 
+    // Build a competition -> championship_scope map. A single competition can
+    // hold multiple championship types (e.g. Euro + a national); we pick the
+    // highest-ranking scope.
+    //
+    // Neon's pooler can reuse backends between sessions, so temp tables from
+    // prior runs occasionally linger. Drop first to be safe.
+    await client.query(`DROP TABLE IF EXISTS comp_championship`);
     await client.query(`
       CREATE TEMP TABLE comp_championship AS
       SELECT competition_id,
@@ -66,6 +93,7 @@ export async function transform(): Promise<{
       GROUP BY competition_id
     `);
 
+    await client.query(`DROP TABLE IF EXISTS comp_date`);
     await client.query(`
       CREATE TEMP TABLE comp_date AS
       SELECT id AS competition_id,
@@ -115,11 +143,17 @@ export async function transform(): Promise<{
     const counts = await client.query<{ t: string; n: string }>(`
       SELECT 'events' AS t, count(*)::text AS n FROM app_staging.events
       UNION ALL SELECT 'competitors', count(*)::text FROM app_staging.competitors
+      UNION ALL SELECT 'countries',   count(*)::text FROM app_staging.countries
       UNION ALL SELECT 'results',     count(*)::text FROM app_staging.official_results
     `);
     const by = Object.fromEntries(counts.rows.map((r) => [r.t, Number(r.n)]));
     log.info('phase2: transform complete', by);
-    return by as { events: number; competitors: number; results: number };
+    return by as {
+      events: number;
+      competitors: number;
+      results: number;
+      countries: number;
+    };
   } finally {
     await client.end();
   }

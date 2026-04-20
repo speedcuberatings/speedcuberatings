@@ -8,6 +8,8 @@ import {
   getCompetitorRecentResults,
   getRatingHistory,
   getEvents,
+  type CompetitorEventRating,
+  type Metric,
 } from '@/lib/queries';
 import {
   eventLabel,
@@ -17,7 +19,7 @@ import {
   roundLabel,
 } from '@/lib/format';
 
-export const revalidate = 600; // 10 minutes
+export const revalidate = 600;
 
 interface PageProps {
   params: Promise<{ wcaId: string }>;
@@ -33,10 +35,18 @@ export async function generateMetadata({ params }: PageProps) {
   };
 }
 
+interface EventGroup {
+  eventId: string;
+  eventName: string;
+  eventRank: number;
+  primary: CompetitorEventRating;
+  secondary: CompetitorEventRating | null;
+}
+
 export default async function CompetitorPage({ params }: PageProps) {
   const { wcaId } = await params;
 
-  const [competitor, ratings, recent, events] = await Promise.all([
+  const [competitor, allRatings, recent, events] = await Promise.all([
     getCompetitor(wcaId),
     getCompetitorRatings(wcaId),
     getCompetitorRecentResults(wcaId, 24),
@@ -44,14 +54,16 @@ export default async function CompetitorPage({ params }: PageProps) {
   ]);
   if (!competitor) notFound();
 
-  // Fetch histories for each rated event in parallel.
+  const groups = groupRatingsByEvent(allRatings);
+
+  // Fetch history for the primary metric of each event the competitor is rated in.
   const histories = await Promise.all(
-    ratings.map(async (r) => ({
-      eventId: r.event_id,
-      history: await getRatingHistory(wcaId, r.event_id),
+    groups.map(async (g) => ({
+      key: `${g.eventId}:${g.primary.metric}`,
+      history: await getRatingHistory(wcaId, g.eventId, g.primary.metric),
     })),
   );
-  const historyByEvent = new Map(histories.map((h) => [h.eventId, h.history]));
+  const historyByKey = new Map(histories.map((h) => [h.key, h.history]));
 
   const eventNameById = new Map(events.map((e) => [e.id, e.name] as const));
   const eventFormatById = new Map(events.map((e) => [e.id, e.format] as const));
@@ -61,7 +73,7 @@ export default async function CompetitorPage({ params }: PageProps) {
       {/* Hero */}
       <header className="pt-12 pb-10 border-b rule">
         <p className="eyebrow mb-3">
-          Competitor ·{' '}
+          WCA ID ·{' '}
           <span className="font-mono normal-case tracking-normal text-[11px]">
             {competitor.wca_id}
           </span>
@@ -79,15 +91,15 @@ export default async function CompetitorPage({ params }: PageProps) {
         <div className="mt-4 flex flex-wrap items-center gap-3 text-[14px] text-[var(--color-muted)]">
           <Flag iso2={competitor.country_iso2} name={competitor.country_id} size={20} />
           <span>{competitor.country_id}</span>
-          {ratings.length > 0 && (
+          {groups.length > 0 && (
             <>
               <span aria-hidden="true">·</span>
               <span>
                 Rated in{' '}
                 <span className="text-[var(--color-ink)] font-medium">
-                  {ratings.length}
+                  {groups.length}
                 </span>{' '}
-                {ratings.length === 1 ? 'event' : 'events'}
+                {groups.length === 1 ? 'event' : 'events'}
               </span>
             </>
           )}
@@ -104,24 +116,37 @@ export default async function CompetitorPage({ params }: PageProps) {
       </header>
 
       {/* Ratings grid */}
-      {ratings.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="py-24 text-center eyebrow">
           no ratings — not enough recent competition data
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 py-12">
-          {ratings.map((r, idx) => {
-            const history = historyByEvent.get(r.event_id) ?? [];
-            const decayed = r.rating < r.raw_rating - 0.5;
+          {groups.map((g, idx) => {
+            const history = historyByKey.get(`${g.eventId}:${g.primary.metric}`) ?? [];
+            const primary = g.primary;
+            const secondary = g.secondary;
+            const primaryDecayed = primary.rating < primary.raw_rating - 0.5;
+
             return (
               <article
-                key={r.event_id}
+                key={g.eventId}
                 className="reveal border-t rule pt-6"
                 style={{ '--i': idx } as React.CSSProperties}
               >
                 <div className="flex items-baseline justify-between gap-6">
                   <div>
-                    <p className="eyebrow mb-1">{eventLabel(r.event_id, r.event_name)}</p>
+                    <p className="eyebrow mb-1 flex items-baseline gap-2">
+                      <i
+                        className={`cubing-icon event-${g.eventId}`}
+                        style={{ fontSize: 16, lineHeight: 1 }}
+                        aria-hidden="true"
+                      />
+                      <span>{eventLabel(g.eventId, g.eventName)}</span>
+                      <span className="text-[var(--color-mute-2)] !tracking-[0.1em]">
+                        · {metricLabel(primary.metric)}
+                      </span>
+                    </p>
                     <p
                       className="font-display text-[2.25rem] leading-none text-[var(--color-ink)]"
                       style={{
@@ -129,30 +154,41 @@ export default async function CompetitorPage({ params }: PageProps) {
                         letterSpacing: '-0.02em',
                       }}
                     >
-                      #{r.rank.toLocaleString()}
+                      #{primary.rank.toLocaleString()}
                     </p>
                   </div>
                   <div className="text-right">
                     <p
                       className="font-mono tnum text-[2.25rem] leading-none text-[var(--color-ink)]"
                     >
-                      {formatRating(r.rating)}
+                      {formatRating(primary.rating)}
                     </p>
-                    {decayed && (
+                    {primaryDecayed && (
                       <p
                         className="mt-1 font-mono tnum text-[11px] text-[var(--color-mute-2)]"
                         title="Raw rating before inactivity decay"
                       >
-                        raw {formatRating(r.raw_rating)}
+                        raw {formatRating(primary.raw_rating)}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="mt-4 flex items-end justify-between">
-                  <p className="font-mono tnum text-[11px] text-[var(--color-muted)]">
-                    {r.result_count} results · last {formatDate(r.last_competed_at)}
-                  </p>
-                  <RatingHistoryChart data={history} width={180} height={44} />
+                <div className="mt-4 flex items-end justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="font-mono tnum text-[11px] text-[var(--color-muted)]">
+                      {primary.result_count} results · last {formatDate(primary.last_competed_at)}
+                    </p>
+                    {secondary && (
+                      <p className="font-mono tnum text-[11px] text-[var(--color-mute-2)]">
+                        {metricLabel(secondary.metric)}:{' '}
+                        <span className="text-[var(--color-muted)]">
+                          {formatRating(secondary.rating)}
+                        </span>{' '}
+                        · #{secondary.rank.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <RatingHistoryChart data={history} width={160} height={40} />
                 </div>
               </article>
             );
@@ -195,6 +231,11 @@ export default async function CompetitorPage({ params }: PageProps) {
                   </span>
                   <span className="min-w-0">
                     <span className="font-body text-[15px] text-[var(--color-ink)] block truncate">
+                      <i
+                        className={`cubing-icon event-${r.event_id}`}
+                        style={{ fontSize: 14, lineHeight: 1, marginRight: 6 }}
+                        aria-hidden="true"
+                      />
                       {eventNameById.get(r.event_id) ?? r.event_id}{' '}
                       <span className="text-[var(--color-muted)]">
                         · {roundLabel(r.round_type_id)}
@@ -225,8 +266,44 @@ export default async function CompetitorPage({ params }: PageProps) {
   );
 }
 
+function metricLabel(m: Metric): string {
+  return m === 'average' ? 'Average' : 'Single';
+}
+
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd'];
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+/**
+ * Collapse the raw per-(event, metric) rows into one card per event,
+ * picking the "natural" primary metric for that event (averages for
+ * Ao5/Mo3 events, single for BLD/FMC/multi).
+ */
+function groupRatingsByEvent(rows: CompetitorEventRating[]): EventGroup[] {
+  const SINGLE_EVENTS = new Set(['333bf', '444bf', '555bf', '333mbf', '333fm']);
+  const byEvent = new Map<string, CompetitorEventRating[]>();
+  for (const r of rows) {
+    const list = byEvent.get(r.event_id) ?? [];
+    list.push(r);
+    byEvent.set(r.event_id, list);
+  }
+  const groups: EventGroup[] = [];
+  for (const [eventId, list] of byEvent) {
+    const single = list.find((r) => r.metric === 'single') ?? null;
+    const average = list.find((r) => r.metric === 'average') ?? null;
+    const primaryMetric: Metric = SINGLE_EVENTS.has(eventId) ? 'single' : 'average';
+    const primary =
+      (primaryMetric === 'single' ? single : average) ?? single ?? average!;
+    const secondary = primary === single ? average : single;
+    groups.push({
+      eventId,
+      eventName: primary.event_name,
+      eventRank: primary.event_rank,
+      primary,
+      secondary,
+    });
+  }
+  return groups.sort((a, b) => a.eventRank - b.eventRank);
 }

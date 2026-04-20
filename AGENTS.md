@@ -51,9 +51,14 @@ pnpm --filter @scr/web run dev
 ## Schema conventions
 
 - `raw_wca.*` — 1:1 mirror of WCA TSV tables. All columns are `text`. Table/column names are whatever the TSV header says (snake_case in V2).
-- `app.*` — derived, typed, app-facing schema produced by Phase 2. Current tables: `events`, `competitors`, `official_results`, `current_ratings`. `competitors.country_iso2` is ISO 3166-1 alpha-2, used for flag rendering.
+- `app.*` — derived, typed, app-facing schema produced by Phase 2.
+  - `events`, `competitors`, `continents`, `countries`, `official_results`, `current_ratings`.
+  - `competitors.country_iso2` is ISO 3166-1 alpha-2, used for flag rendering.
+  - `countries` maps WCA country id → continent (supports region filter).
+  - `current_ratings` has a `metric` column (`'single'` or `'average'`); PK is `(competitor_id, event_id, metric)`. Most events have both rows; BLD / multi / FMC events have only `'single'`.
+  - `rank` uses SQL `RANK()` so ties share a rank and the next slot skips (5, 5, 7).
 - `scr._meta` — single-row Phase 1 ingest state. Persists across schema swaps.
-- `scr.rating_history` — monthly snapshots of `current_ratings`, for trend/delta displays.
+- `scr.rating_history` — monthly snapshots of `current_ratings` (keyed on `metric` too), for trend/delta displays.
 - `scr.rating_snapshot_state` — tracks which month we last snapshotted, so reruns within a month don't duplicate.
 
 ## Ingest design notes
@@ -78,7 +83,7 @@ Translates the spec in `docs/Rubik's Cube Ranking_Ratings.txt`. Per (competitor,
 4. Weight by `0.99 ^ days_since_competition`. Take weighted mean → raw rating.
 5. If days since most recent result > 90, multiply by `0.995 ^ (days − 90)`.
 6. At the two-year cutoff the competitor drops out naturally (no results in window).
-7. Rank by rating per event (DENSE_RANK).
+7. Rank by rating per (event, metric) using SQL `RANK()` (tied competitors share a rank and the next slot skips; 5, 5, 7).
 
 Tunable constants live at the top of `ingest/src/phase2/ratings.ts`. Rateable event list is in `ingest/src/phase2/transform.ts`.
 
@@ -89,15 +94,18 @@ Next.js 15 App Router under `web/`. Uses the Neon serverless driver
 Vercel for hosting, Cloudflare for DNS. Routes:
 
 - `/` → redirect to `/rankings/333`
-- `/rankings/[event]` — leaderboard, top 100 by default with "Load next 200" pagination
-- `/competitors/[wcaId]` — profile with per-event ratings, history sparkline, recent results
-- `/about` — colophon + explanation of the model
+- `/rankings/[event]` — leaderboard
+  - `?metric=single|average` — toggle, defaults to `average` where available
+  - `?region=<continent_id>|<country_id>` — filter (e.g. `_Europe`, `Poland`)
+  - `?limit=<n>` — top-N, default 100, max 2000
+- `/competitors/[wcaId]` — profile with per-event ratings (primary + secondary metric), history sparkline, recent results
+- `/about` — explanation of the model
 
 **Aesthetic:** editorial data-journalism. Paper-cream background (with a
 subtle SVG noise grain), deep ink text, crimson accent, Fraunces display +
-Manrope body + JetBrains Mono for tabular figures. Tokens live in
-`web/app/globals.css` under `@theme`. Top-3 ranks get italic + accent
-treatment.
+Manrope body + JetBrains Mono for tabular figures. Event icons from the
+`@cubing/icons` webfont. Tokens live in `web/app/globals.css` under `@theme`.
+Top-3 ranks get italic + accent treatment.
 
 **Caching:** `revalidate = 300` on rankings, `600` on profiles. Ratings
 change at most hourly, so 5-minute caching is plenty.
@@ -105,6 +113,10 @@ change at most hourly, so 5-minute caching is plenty.
 **Site invariant:** `web/` queries `app.*` and `scr.rating_history`/`scr._meta`
 only. Never touches `raw_wca.*`. If a page needs WCA-schema data, add it
 to Phase 2's derived schema first.
+
+**Favicon:** static `app/icon.svg` for SSR + a client component
+`RandomFavicon` that generates a new scrambled 3×3 face on every mount
+(see `web/components/RandomFavicon.tsx`).
 
 ## Verification checklist (Phase 1)
 

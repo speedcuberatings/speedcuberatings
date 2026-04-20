@@ -9,9 +9,8 @@ export const metadata = {
 export default function AboutPage() {
   return (
     <article className="mx-auto max-w-[72ch] px-4 sm:px-8 py-16">
-      <p className="eyebrow">Colophon</p>
       <h1
-        className="mt-3 font-display leading-[0.98] text-[var(--color-ink)]
+        className="font-display leading-[0.98] text-[var(--color-ink)]
                    text-[clamp(2.5rem,6vw,4.25rem)]"
         style={{
           fontVariationSettings: '"opsz" 144, "SOFT" 50, "wght" 420',
@@ -27,14 +26,26 @@ export default function AboutPage() {
                    font-body [&_strong]:text-[var(--color-ink)] [&_strong]:font-semibold"
       >
         <p>
-          The official WCA rankings capture something important: a single best
-          performance. Records live there. But a single solve is a narrow lens —
-          it says little about who is performing well <em>right now</em>.
+          The rating model on this site was designed by{' '}
+          <strong>James Macdiarmid</strong> and laid out in his video{' '}
+          <a
+            href="https://www.youtube.com/watch?v=2lU-d6OUU3Q"
+            className="ink-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <em>Our ranking system is broken. Let&rsquo;s fix it!</em>
+          </a>
+          . This project is an implementation of the spec he described there.
         </p>
         <p>
-          This site builds on top of the official WCA results export and
-          produces a <strong>performance rating</strong> per competitor per
-          event. The inputs are real. The interpretation is ours.
+          The official WCA rankings capture something important: a single best
+          performance. Records live there. But a single solve is a narrow lens —
+          it says little about who is performing well <em>right now</em>. This
+          site is an attempt at that second view: a{' '}
+          <strong>performance rating</strong> per competitor per event, updated
+          hourly from the public WCA export. The inputs are real. The
+          interpretation follows James&rsquo;s spec.
         </p>
 
         <h2
@@ -113,23 +124,29 @@ export default function AboutPage() {
             letterSpacing: '-0.015em',
           }}
         >
-          Acknowledgements
+          Credits and data
         </h2>
         <p>
-          The rating model is the work of{' '}
-          <strong>James Macdiarmid</strong>, proposed in his video{' '}
+          The rating model is by{' '}
           <a
             href="https://www.youtube.com/watch?v=2lU-d6OUU3Q"
             className="ink-link"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <em>Our ranking system is broken</em>
+            James Macdiarmid
           </a>
-          . This site is a faithful implementation of the spec he described
-          there — if you have thoughts on the model itself, they belong with
-          him, not us. The WCA maintains the underlying competition data.
-          Implementation of this site is{' '}
+          . The competition data is maintained by the{' '}
+          <a
+            href="https://worldcubeassociation.org/results"
+            className="ink-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            World Cube Association
+          </a>{' '}
+          and used under the terms of its public results export. This site is
+          not affiliated with or endorsed by the WCA. The implementation is{' '}
           <a
             href="https://github.com/speedcuberatings/speedcuberatings"
             className="ink-link"

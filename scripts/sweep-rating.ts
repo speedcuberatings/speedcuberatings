@@ -1,11 +1,15 @@
 /**
  * Parameter sweep — try variations of the rating formula and see which
- * configuration best matches James Macdiarmid's reference figures:
+ * configuration best matches James Macdiarmid's reference figures from
+ * the source video.
  *
- *   Xuanyi Geng : 85.92  (our current calc: 86.99)
- *   Yiheng Wang : 85.04  (our current calc: 87.80)
- *   Yufang Du   : 74.92  (our current calc: 75.70)
- *   Tymon       : 73.56  (our current calc: 74.70)
+ * Current result: 2% bonus cap with 0.99^days weighting reproduces the
+ * reference leaderboard to MAE 0.12 at a cutoff of 2026-04-01
+ * (approximately the video's publish date). Without a cutoff, MAE is
+ * 0.45 — the difference is purely results accumulated after the video.
+ *
+ * Use the cutoff variants below to sanity-check that the model still
+ * matches James's figures whenever constants are touched.
  */
 
 import { makePool } from '../ingest/src/db.ts';
@@ -132,13 +136,10 @@ async function main() {
     ['2021ZAJD03', 'Teodor Zajder',      67.93],
   ];
   const configs: Params[] = [
-    { label: '15% (current)',  weightBase: 0.99, bonusScale: 15 / 17, metric: 'average' },
-    { label: '10%',            weightBase: 0.99, bonusScale: 10 / 17, metric: 'average' },
-    { label: '5%',             weightBase: 0.99, bonusScale: 5 / 17,  metric: 'average' },
-    { label: '3%',             weightBase: 0.99, bonusScale: 3 / 17,  metric: 'average' },
-    { label: '2%',             weightBase: 0.99, bonusScale: 2 / 17,  metric: 'average' },
-    { label: '1%',             weightBase: 0.99, bonusScale: 1 / 17,  metric: 'average' },
-    { label: 'no bonuses',     weightBase: 0.99, bonusScale: 0,       metric: 'average', noBonuses: true },
+    { label: '2% (current)',     weightBase: 0.99, bonusScale: 2 / 17,  metric: 'average' },
+    { label: '2%, cutoff 2026-04-01', weightBase: 0.99, bonusScale: 2 / 17, metric: 'average', cutoffDate: '2026-04-01' },
+    { label: '2%, cutoff 2026-03-01', weightBase: 0.99, bonusScale: 2 / 17, metric: 'average', cutoffDate: '2026-03-01' },
+    { label: '2%, cutoff 2026-02-01', weightBase: 0.99, bonusScale: 2 / 17, metric: 'average', cutoffDate: '2026-02-01' },
   ];
 
   for (const config of configs) {

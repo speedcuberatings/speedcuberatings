@@ -14,8 +14,8 @@ const INACTIVITY_BASE = 0.9995;
 const INACTIVITY_GRACE_DAYS = 90;
 const MIN_RESULTS = 3;
 
-// Current (15%-cap) bonus scheme — same as production ratings.ts
-const BONUS_SCALE = 15 / 17;
+// Production bonus scheme — keep in sync with ingest/src/derive/ratings.ts.
+const BONUS_SCALE = 2 / 17;
 const BONUS_FINAL = 0.03 * BONUS_SCALE;
 const BONUS_MEDAL = [0.04, 0.02, 0.01].map((v) => v * BONUS_SCALE);
 const BONUS_RECORD = {

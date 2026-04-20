@@ -20,7 +20,8 @@ import {
   roundLabel,
 } from '@/lib/format';
 
-export const revalidate = 600;
+// Fresh data on every render — see the note on /rankings/[event]/page.tsx.
+export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ wcaId: string }>;

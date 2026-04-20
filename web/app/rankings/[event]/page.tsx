@@ -20,7 +20,12 @@ import {
 } from '@/lib/queries';
 import { eventLabel } from '@/lib/format';
 
-export const revalidate = 300;
+// Rendered dynamically on every request. The page reads filters from
+// searchParams (which already forces dynamic rendering in Next 15), and we
+// want fresh data on every visit — ratings are updated hourly and we'd
+// rather pay a few-hundred-ms per render than serve stale leaderboards
+// while the fetch/route caches catch up.
+export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ event: string }>;

@@ -4,6 +4,7 @@ import { EventPicker } from '@/components/EventPicker';
 import { LeaderboardTable } from '@/components/LeaderboardTable';
 import { LeaderboardSkeleton } from '@/components/Skeletons';
 import { LastUpdated } from '@/components/LastUpdated';
+import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { MetricToggle } from '@/components/MetricToggle';
 import { RegionPicker } from '@/components/RegionPicker';
 import {
@@ -112,7 +113,7 @@ export default async function RankingsPage({ params, searchParams }: PageProps) 
               show={{ single: event.has_single, average: event.has_average }}
             />
             <Suspense
-              key={`stats-${effectiveMetric}-${region ?? 'all'}-${limit}`}
+              key={`stats-${effectiveMetric}-${region ?? 'all'}`}
               fallback={
                 <span className="skel h-[12px] w-[170px] rounded-[2px]" />
               }
@@ -129,7 +130,7 @@ export default async function RankingsPage({ params, searchParams }: PageProps) 
         </div>
 
         <Suspense
-          key={`rows-${effectiveMetric}-${region ?? 'all'}-${limit}`}
+          key={`rows-${effectiveMetric}-${region ?? 'all'}`}
           fallback={<LeaderboardSkeleton rows={12} />}
         >
           <LeaderboardSection
@@ -171,16 +172,13 @@ async function LeaderboardSection({
       <LeaderboardTable rows={rows} />
       {limit < total && (
         <div className="flex items-center justify-center mt-10 mb-8">
-          <a
+          <LoadMoreButton
             href={paramAppend('limit', String(Math.min(total, limit + 200)), {
               metric: metricParam,
               region,
             })}
-            className="eyebrow !tracking-[0.2em] border rule px-6 py-3
-                       hover:bg-[var(--color-paper-2)] transition-colors"
-          >
-            Load next 200 →
-          </a>
+            label="Load next 200 →"
+          />
         </div>
       )}
     </>

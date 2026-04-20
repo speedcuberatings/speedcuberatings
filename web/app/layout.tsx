@@ -78,13 +78,13 @@ function SiteHeader() {
             Speedcube
             <span className="italic text-[var(--color-accent)]"> Ratings</span>
           </span>
-          <span className="eyebrow mt-2 block">
+          <span className="eyebrow mt-2 hidden sm:block">
             An independent leaderboard · based on WCA results
           </span>
         </Link>
         <nav
           aria-label="Primary"
-          className="hidden sm:flex items-center gap-6 pt-3 text-[13px] tracking-[0.04em] text-[var(--color-muted)]"
+          className="flex items-center gap-5 sm:gap-6 pt-3 text-[13px] tracking-[0.04em] text-[var(--color-muted)] shrink-0"
         >
           <Link href="/rankings/333" className="hover:text-[var(--color-ink)] transition-colors">
             Rankings

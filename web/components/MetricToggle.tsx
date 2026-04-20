@@ -46,7 +46,9 @@ export function MetricToggle({
             scroll={false}
             aria-current={active ? 'true' : undefined}
             className={[
-              'px-4 py-2 text-[12px] tracking-[0.08em] uppercase transition-colors',
+              'inline-flex items-center justify-center min-h-[44px] px-5 py-2',
+              'text-[12px] tracking-[0.08em] uppercase transition-colors',
+              '[touch-action:manipulation] [-webkit-tap-highlight-color:transparent]',
               active
                 ? 'bg-[var(--color-ink)] text-[var(--color-paper)]'
                 : 'text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-paper-2)]',

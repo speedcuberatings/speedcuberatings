@@ -85,14 +85,6 @@ function SiteHeader() {
           <Link href="/about" className="hover:text-[var(--color-ink)] transition-colors">
             About
           </Link>
-          <a
-            href="https://github.com/speedcuberatings/speedcuberatings"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-[var(--color-ink)] transition-colors"
-          >
-            Source
-          </a>
         </nav>
       </div>
     </header>
@@ -124,6 +116,16 @@ function SiteFooter() {
             worldcubeassociation.org/results
           </a>
           . Ratings computed independently; not affiliated with the WCA.
+          Source code on{' '}
+          <a
+            href="https://github.com/speedcuberatings/speedcuberatings"
+            className="ink-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
+          </a>
+          .
         </p>
       </div>
     </footer>

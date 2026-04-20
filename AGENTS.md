@@ -10,7 +10,7 @@ Public speedcubing performance-rating site built on top of the official [WCA res
 
 1. **Phase 1 — Ingest** ✅: hourly-synced mirror of WCA export → Neon Postgres `raw_wca` schema.
 2. **Phase 2 — Rating pipeline** ✅: compute derived tables (`app.current_ratings`, `scr.rating_history`) from `raw_wca`.
-3. **Phase 3 — Public site**: Next.js UI reading the derived tables.
+3. **Phase 3 — Public site** ✅: Next.js UI reading the derived tables.
 
 **Important invariant:** the `web/` app must only query derived tables, never `raw_wca.*`. This lets us absorb WCA schema changes in one place (the rating pipeline) without breaking the site.
 
@@ -51,7 +51,7 @@ pnpm --filter @scr/web run dev
 ## Schema conventions
 
 - `raw_wca.*` — 1:1 mirror of WCA TSV tables. All columns are `text`. Table/column names are whatever the TSV header says (snake_case in V2).
-- `app.*` — derived, typed, app-facing schema produced by Phase 2. Current tables: `events`, `competitors`, `official_results`, `current_ratings`.
+- `app.*` — derived, typed, app-facing schema produced by Phase 2. Current tables: `events`, `competitors`, `official_results`, `current_ratings`. `competitors.country_iso2` is ISO 3166-1 alpha-2, used for flag rendering.
 - `scr._meta` — single-row Phase 1 ingest state. Persists across schema swaps.
 - `scr.rating_history` — monthly snapshots of `current_ratings`, for trend/delta displays.
 - `scr.rating_snapshot_state` — tracks which month we last snapshotted, so reruns within a month don't duplicate.
@@ -81,6 +81,30 @@ Translates the spec in `docs/Rubik's Cube Ranking_Ratings.txt`. Per (competitor,
 7. Rank by rating per event (DENSE_RANK).
 
 Tunable constants live at the top of `ingest/src/phase2/ratings.ts`. Rateable event list is in `ingest/src/phase2/transform.ts`.
+
+## Web app (Phase 3)
+
+Next.js 15 App Router under `web/`. Uses the Neon serverless driver
+(`@neondatabase/serverless`) so it works on any runtime — we're targeting
+Vercel for hosting, Cloudflare for DNS. Routes:
+
+- `/` → redirect to `/rankings/333`
+- `/rankings/[event]` — leaderboard, top 100 by default with "Load next 200" pagination
+- `/competitors/[wcaId]` — profile with per-event ratings, history sparkline, recent results
+- `/about` — colophon + explanation of the model
+
+**Aesthetic:** editorial data-journalism. Paper-cream background (with a
+subtle SVG noise grain), deep ink text, crimson accent, Fraunces display +
+Manrope body + JetBrains Mono for tabular figures. Tokens live in
+`web/app/globals.css` under `@theme`. Top-3 ranks get italic + accent
+treatment.
+
+**Caching:** `revalidate = 300` on rankings, `600` on profiles. Ratings
+change at most hourly, so 5-minute caching is plenty.
+
+**Site invariant:** `web/` queries `app.*` and `scr.rating_history`/`scr._meta`
+only. Never touches `raw_wca.*`. If a page needs WCA-schema data, add it
+to Phase 2's derived schema first.
 
 ## Verification checklist (Phase 1)
 

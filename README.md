@@ -10,7 +10,7 @@ See `docs/Rubik's Cube Ranking_Ratings.txt` for the rating model spec.
 
 **Phase 2 — Rating pipeline** ✅ Derived `app.current_ratings` + monthly `scr.rating_history` snapshots, computed from `raw_wca` per the spec in `docs/`.
 
-**Phase 3 — Public site** ⏳ Next.js UI reading the derived tables. Not yet started.
+**Phase 3 — Public site** ✅ Next.js App Router reading the derived tables. Leaderboard, competitor profiles with rating history, about page.
 
 ## Architecture
 

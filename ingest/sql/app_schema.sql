@@ -16,10 +16,11 @@ CREATE TABLE app_staging.events (
 );
 
 CREATE TABLE app_staging.competitors (
-  wca_id     text PRIMARY KEY,
-  name       text NOT NULL,
-  country_id text NOT NULL,
-  gender     text
+  wca_id       text PRIMARY KEY,
+  name         text NOT NULL,
+  country_id   text NOT NULL,  -- WCA country name, e.g. 'China'
+  country_iso2 text,            -- ISO 3166-1 alpha-2, nullable for non-ISO regions
+  gender       text
 );
 
 -- Flattened, typed view of official WCA results from the last N years.

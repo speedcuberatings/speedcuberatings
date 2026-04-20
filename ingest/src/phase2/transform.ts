@@ -42,10 +42,15 @@ export async function transform(): Promise<{
     `);
 
     await client.query(`
-      INSERT INTO app_staging.competitors (wca_id, name, country_id, gender)
-      SELECT wca_id, name, country_id, NULLIF(gender, '')
-      FROM raw_wca.persons
-      WHERE sub_id = '1'
+      INSERT INTO app_staging.competitors (wca_id, name, country_id, country_iso2, gender)
+      SELECT p.wca_id,
+             p.name,
+             p.country_id,
+             NULLIF(co.iso2, '') AS country_iso2,
+             NULLIF(p.gender, '')
+      FROM raw_wca.persons p
+      LEFT JOIN raw_wca.countries co ON co.id = p.country_id
+      WHERE p.sub_id = '1'
     `);
 
     await client.query(`

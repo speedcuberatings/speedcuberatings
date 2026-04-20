@@ -1,0 +1,16 @@
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
+
+/**
+ * Neon's HTTP driver works in every Next.js runtime (Node, Edge, Cloudflare).
+ * No connection pool bookkeeping; one-shot query calls, cached by Next's
+ * data cache on the page/route level.
+ */
+let _sql: NeonQueryFunction<false, false> | null = null;
+
+export function sql(): NeonQueryFunction<false, false> {
+  if (_sql) return _sql;
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is not set');
+  _sql = neon(url);
+  return _sql;
+}

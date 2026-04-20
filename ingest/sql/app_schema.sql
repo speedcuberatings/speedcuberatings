@@ -1,5 +1,5 @@
--- App-facing derived schema, built as `app_staging` by the Phase 2 pipeline
--- and atomically renamed to `app` on success.
+-- App-facing derived schema, built as `app_staging` by the derive stage
+-- (see ingest/src/derive/) and atomically renamed to `app` on success.
 --
 -- This file is idempotent-ish: the staging schema is always dropped and
 -- recreated (so it starts clean on every run); everything in `scr` uses

@@ -165,7 +165,7 @@ export async function transform(): Promise<{
       UNION ALL SELECT 'results',      count(*)::text FROM app_staging.official_results
     `);
     const by = Object.fromEntries(counts.rows.map((r) => [r.t, Number(r.n)]));
-    log.info('phase2: transform complete', by);
+    log.info('derive: transform complete', by);
     return by as {
       events: number;
       competitors: number;

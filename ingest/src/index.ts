@@ -3,17 +3,28 @@ import {
   fetchLocalState,
   isNewExport,
   majorVersion,
-} from './check.ts';
-import { downloadAndUnzip, cleanup } from './download.ts';
-import { importExport } from './import.ts';
-import { atomicSwap, updateMeta } from './swap.ts';
+} from './wca/check.ts';
+import { downloadAndUnzip, cleanup } from './wca/download.ts';
+import { importExport } from './wca/import.ts';
+import { atomicSwap, updateMeta } from './wca/swap.ts';
 import { log } from './log.ts';
-import { runPhase2 } from './phase2/index.ts';
+import { runDerive } from './derive/index.ts';
 
+/**
+ * Two-stage ingest orchestrator.
+ *
+ *   Stage `wca`     — poll the WCA export API and, when a new export is
+ *                     available, download + import into `raw_wca`.
+ *                     Skipped when `export_date` hasn't changed (unless
+ *                     FORCE_INGEST=1).
+ *   Stage `derive`  — rebuild `app.*` from `raw_wca.*` and recompute
+ *                     ratings. Runs every hourly tick so inactivity decay
+ *                     stays current to the day. Skipped with SKIP_DERIVE=1.
+ */
 async function main(): Promise<void> {
   const startedAt = new Date();
   const force = process.env.FORCE_INGEST === '1';
-  const skipPhase2 = process.env.SKIP_PHASE2 === '1';
+  const skipDerive = process.env.SKIP_DERIVE === '1';
 
   const remote = await fetchWcaMetadata();
   const local = await fetchLocalState();
@@ -53,7 +64,7 @@ async function main(): Promise<void> {
         rowCounts: result.rowCounts,
         startedAt,
       });
-      log.info('phase1: ingest complete', {
+      log.info('wca: import complete', {
         elapsed_sec: Math.round((Date.now() - startedAt.getTime()) / 1000),
         row_counts: result.rowCounts,
       });
@@ -61,16 +72,14 @@ async function main(): Promise<void> {
       await cleanup(dl.dir);
     }
   } else {
-    log.info('phase1: no new export, skipping ingest');
+    log.info('wca: no new export, skipping import');
   }
 
-  // Phase 2 runs every time (even without a new export) so the inactivity
-  // decay stays current on every hourly tick.
-  if (skipPhase2) {
-    log.info('phase2: skipped via SKIP_PHASE2');
+  if (skipDerive) {
+    log.info('derive: skipped via SKIP_DERIVE');
     return;
   }
-  await runPhase2();
+  await runDerive();
 }
 
 main().catch((err) => {

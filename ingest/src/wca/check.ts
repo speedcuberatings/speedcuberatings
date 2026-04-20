@@ -1,5 +1,5 @@
-import { log } from './log.ts';
-import { makePool } from './db.ts';
+import { log } from '../log.ts';
+import { makePool } from '../db.ts';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,7 +54,7 @@ export interface LocalState {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const META_SQL_PATH = path.resolve(__dirname, '../sql/meta.sql');
+const META_SQL_PATH = path.resolve(__dirname, '../../sql/meta.sql');
 
 /**
  * Create `scr._meta` if it doesn't exist. Idempotent — runs the DDL file,

@@ -27,7 +27,7 @@ export async function assignRanks(): Promise<void> {
          AND cr.event_id      = ranked.event_id
          AND cr.metric        = ranked.metric
     `);
-    log.info('phase2: ranks assigned');
+    log.info('derive: ranks assigned');
   } finally {
     await pool.end();
   }

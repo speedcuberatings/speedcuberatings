@@ -24,7 +24,7 @@ export async function atomicAppSwap(): Promise<void> {
     }
     await client.query(`ALTER SCHEMA ${STAGING} RENAME TO ${LIVE}`);
     await client.query('COMMIT');
-    log.info('phase2: app schema swap complete');
+    log.info('derive: app schema swap complete');
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;

@@ -7,11 +7,15 @@ import { atomicAppSwap } from './swap.ts';
 import { maybeSnapshot } from './snapshot.ts';
 
 /**
- * Run the Phase 2 rating pipeline end-to-end. Assumes `raw_wca.*` has just
- * been refreshed by Phase 1 (or an older refresh is acceptable). Safe to run
- * repeatedly.
+ * Run the derive stage end-to-end. Rebuilds `app.*` from `raw_wca.*` and
+ * recomputes current ratings. Assumes a prior WCA import has populated
+ * `raw_wca` (or that an older refresh is acceptable — the pipeline
+ * doesn't need the very latest WCA data to run, it just operates on
+ * whatever's there).
+ *
+ * Safe to run repeatedly.
  */
-export async function runPhase2(): Promise<void> {
+export async function runDerive(): Promise<void> {
   const startedAt = Date.now();
   await applyAppSchema();
   const t = await transform();
@@ -19,7 +23,7 @@ export async function runPhase2(): Promise<void> {
   await assignRanks();
   await atomicAppSwap();
   await maybeSnapshot();
-  log.info('phase2: complete', {
+  log.info('derive: complete', {
     elapsed_sec: Math.round((Date.now() - startedAt) / 1000),
     transform: t,
     ratings: r,

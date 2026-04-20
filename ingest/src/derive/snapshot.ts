@@ -19,7 +19,7 @@ export async function maybeSnapshot(): Promise<boolean> {
     const now = new Date();
     const firstOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     if (last && sameMonth(last, firstOfMonth)) {
-      log.info('phase2: snapshot already recorded for this month, skipping');
+      log.info('derive: snapshot already recorded for this month, skipping');
       return false;
     }
 
@@ -37,7 +37,7 @@ export async function maybeSnapshot(): Promise<boolean> {
       `UPDATE scr.rating_snapshot_state SET last_snapshot_month = $1::date WHERE id = 1`,
       [firstOfMonth.toISOString().slice(0, 10)],
     );
-    log.info('phase2: monthly snapshot written', {
+    log.info('derive: monthly snapshot written', {
       month: firstOfMonth.toISOString().slice(0, 10),
     });
     return true;

@@ -4,7 +4,7 @@ import { Readable } from 'node:stream';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import unzipper from 'unzipper';
-import { log } from './log.ts';
+import { log } from '../log.ts';
 
 export interface DownloadedExport {
   dir: string;

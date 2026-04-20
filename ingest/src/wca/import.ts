@@ -2,8 +2,8 @@ import { createReadStream, promises as fsp } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import pg from 'pg';
 import copyFrom from 'pg-copy-streams';
-import { log } from './log.ts';
-import { makeClient } from './db.ts';
+import { log } from '../log.ts';
+import { makeClient } from '../db.ts';
 
 const STAGING_SCHEMA = 'wca_staging';
 
@@ -14,7 +14,7 @@ const STAGING_SCHEMA = 'wca_staging';
  *  - `scrambles` / `result_attempts` are huge and unused by the rating model
  *    (the model only needs `results.best`/`.average`, not individual solves).
  *  - `ranks_*` are WCA's pre-computed PR rankings, which we replace with our
- *    own rating pipeline in Phase 2.
+ *    own rating pipeline in the `derive` stage.
  *
  * Excluding them keeps us comfortably inside Neon's 512 MB free tier while
  * we iterate. Revisit when we need those features.

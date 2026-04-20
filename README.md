@@ -42,12 +42,10 @@ The separation between `raw_wca` and `app` is deliberate: the web app never quer
 ingest/        TypeScript ingest pipeline (WCA export → Neon)
   sql/         SQL schema for scr.* and app_staging.*
   src/
-    check.ts       poll the WCA export API
-    download.ts    fetch + unzip the TSV export
-    import.ts      stream the TSV files into wca_staging
-    swap.ts        atomic rename wca_staging → raw_wca
-    phase2/        transform raw_wca → app; compute ratings
-    index.ts       orchestrator (called by the workflow)
+    wca/       Stage 1: WCA API → raw_wca (check, download, import, swap)
+    derive/    Stage 2: raw_wca → app (schema, transform, ratings, rank, swap, snapshot)
+    db.ts, log.ts   small shared infra
+    index.ts   pipeline orchestrator (called by the workflow)
 web/           Next.js 15 App Router site
   app/         routes: /rankings/[event], /competitors/[wcaId], /about, OG images
   components/  shared UI (leaderboard, pickers, charts, skeletons)
@@ -69,7 +67,7 @@ Per (competitor, event, metric):
 5. If the competitor hasn't competed in more than 90 days, multiply by `0.995 ^ (days − 90)`.
 6. Rank per event and metric using SQL `RANK()` (tied competitors share a rank; the next slot skips).
 
-Bonus weights are calibrated against the reference values shown in James's video (MAE 0.45 across 11 reference figures). See the comment block at the top of `ingest/src/phase2/ratings.ts` and `scripts/sweep-rating.ts`.
+Bonus weights are calibrated against the reference values shown in James's video (MAE 0.45 across 11 reference figures). See the comment block at the top of `ingest/src/derive/ratings.ts` and `scripts/sweep-rating.ts`.
 
 ## Running locally
 

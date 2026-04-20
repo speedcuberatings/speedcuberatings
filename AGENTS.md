@@ -24,7 +24,7 @@ pnpm install
 pnpm --filter @scr/ingest run check          # poll WCA, no download
 pnpm --filter @scr/ingest run ingest         # full pipeline
 FORCE_INGEST=1 pnpm --filter @scr/ingest run ingest
-SKIP_PHASE2=1  pnpm --filter @scr/ingest run ingest   # only refresh raw_wca
+SKIP_DERIVE=1  pnpm --filter @scr/ingest run ingest   # only refresh raw_wca
 
 # Web
 pnpm --filter @scr/web dev                   # localhost:3000
@@ -69,7 +69,7 @@ DATABASE_URL=… npx tsx scripts/sweep-rating.ts
 ## Site invariant
 
 `web/` only reads from `app.*` and `scr.*`. It never queries `raw_wca.*`.
-If you need something from raw WCA data, add it to the Phase 2 derived
+If you need something from raw WCA data, add it to the `derive/` stage's
 schema first. This keeps upstream format changes contained.
 
 ## Ingest pipeline design
@@ -112,7 +112,7 @@ Per (competitor, event, metric), every ingest run:
    17%" but effective values in the reference implementation are
    ~10× smaller; calibrated via `scripts/sweep-rating.ts` to match
    the reference leaderboard to MAE 0.45. See the comment block at
-   the top of `ingest/src/phase2/ratings.ts`.
+   the top of `ingest/src/derive/ratings.ts`.
 4. Weight by `0.99 ^ days_since_competition`. Weighted mean → raw
    rating.
 5. If days since most recent result > 90, multiply by
@@ -120,8 +120,8 @@ Per (competitor, event, metric), every ingest run:
    24-month cutoff.
 6. Rank by rating per (event, metric) using SQL `RANK()`.
 
-Tunable constants are at the top of `ingest/src/phase2/ratings.ts`.
-Rateable event list is in `ingest/src/phase2/transform.ts`.
+Tunable constants are at the top of `ingest/src/derive/ratings.ts`.
+Rateable event list is in `ingest/src/derive/transform.ts`.
 
 ## Web app
 
@@ -190,8 +190,10 @@ Rateable event list is in `ingest/src/phase2/transform.ts`.
 ingest/                  Ingest pipeline (Node/TS, runs in GH Actions)
   sql/                   SQL DDL: scr.* + app_staging.* tables
   src/
-    {check,download,import,swap}.ts   Phase-1 (WCA → raw_wca) steps
-    phase2/              Phase-2 (raw_wca → app + rating compute)
+    wca/                 Stage 1: WCA API → raw_wca
+                           check, download, import, swap
+    derive/              Stage 2: raw_wca → app + rating compute
+                           schema, transform, ratings, rank, swap, snapshot
     db.ts, log.ts        Small shared infra
     index.ts             Pipeline orchestrator
 web/                     Next.js 15 site (Server + Client components)

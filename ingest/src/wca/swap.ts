@@ -1,5 +1,5 @@
-import { makePool } from './db.ts';
-import { log } from './log.ts';
+import { makePool } from '../db.ts';
+import { log } from '../log.ts';
 import { STAGING_SCHEMA } from './import.ts';
 
 const LIVE_SCHEMA = 'raw_wca';

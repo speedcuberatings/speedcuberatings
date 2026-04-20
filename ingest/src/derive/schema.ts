@@ -17,7 +17,7 @@ export async function applyAppSchema(): Promise<void> {
   const pool = makePool();
   try {
     await pool.query(sql);
-    log.info('phase2: app_staging schema ready');
+    log.info('derive: app_staging schema ready');
   } finally {
     await pool.end();
   }

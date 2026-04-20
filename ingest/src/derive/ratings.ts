@@ -128,7 +128,7 @@ export async function computeRatings(): Promise<{
   }
 
   if (rows.length === 0) {
-    log.warn('phase2: no ratings produced');
+    log.warn('derive: no ratings produced');
     return { events: eventsProcessed, ratings: 0 };
   }
 
@@ -145,7 +145,7 @@ export async function computeRatings(): Promise<{
     await client.end();
   }
 
-  log.info('phase2: ratings written', {
+  log.info('derive: ratings written', {
     events: eventsProcessed,
     ratings: rows.length,
   });
@@ -186,12 +186,12 @@ async function computeEvent(
 
   if (wrSingle && wrSingle > 0) {
     const kept = await computeEventMetric(eventId, 'single', wrSingle, today, out);
-    log.info('phase2: event computed', { eventId, metric: 'single', wr: wrSingle, rated: kept });
+    log.info('derive: event computed', { eventId, metric: 'single', wr: wrSingle, rated: kept });
     if (kept > 0) emittedAny = true;
   }
   if (wrAverage && wrAverage > 0) {
     const kept = await computeEventMetric(eventId, 'average', wrAverage, today, out);
-    log.info('phase2: event computed', { eventId, metric: 'average', wr: wrAverage, rated: kept });
+    log.info('derive: event computed', { eventId, metric: 'average', wr: wrAverage, rated: kept });
     if (kept > 0) emittedAny = true;
   }
 

@@ -127,9 +127,29 @@
     text-decoration-color: var(--color-accent);
     color: var(--color-accent);
   }
+
+  /* Skeleton block for loading states. Paper-toned, gentle pulse. */
+  .skel {
+    display: block;
+    background: linear-gradient(
+      90deg,
+      var(--color-paper-2) 0%,
+      var(--color-rule) 40%,
+      var(--color-paper-2) 80%
+    );
+    background-size: 220% 100%;
+    animation: skel-pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes skel-pulse {
+    0%   { background-position: 120% 0; opacity: 0.75; }
+    50%  { opacity: 1; }
+    100% { background-position: -20% 0; opacity: 0.75; }
+  }
 }
 
 /* Ensure motion isn't forced on anyone who doesn't want it. */
 @media (prefers-reduced-motion: reduce) {
   .reveal { animation: none; opacity: 1; transform: none; }
+  .skel { animation: none; background: var(--color-paper-2); }
 }

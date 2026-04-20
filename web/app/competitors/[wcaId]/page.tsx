@@ -2,14 +2,17 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Flag } from '@/components/Flag';
 import { ProfileEventCard } from '@/components/ProfileEventCard';
+import { MetricToggle } from '@/components/MetricToggle';
 import {
   getCompetitor,
   getCompetitorRatings,
   getCompetitorRecentResults,
-  getRatingHistory,
+  getCompetitorHistory,
   getEvents,
+  coerceMetric,
   type CompetitorEventRating,
   type Metric,
+  type RatingHistoryPoint,
 } from '@/lib/queries';
 import {
   formatResult,
@@ -21,6 +24,7 @@ export const revalidate = 600;
 
 interface PageProps {
   params: Promise<{ wcaId: string }>;
+  searchParams: Promise<{ metric?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -37,38 +41,37 @@ interface EventGroup {
   eventId: string;
   eventName: string;
   eventRank: number;
-  defaultMetric: Metric;
   single: CompetitorEventRating | null;
   average: CompetitorEventRating | null;
 }
 
-const SINGLE_DEFAULT_EVENTS = new Set(['333bf', '444bf', '555bf', '333mbf', '333fm']);
-
-export default async function CompetitorPage({ params }: PageProps) {
+export default async function CompetitorPage({ params, searchParams }: PageProps) {
   const { wcaId } = await params;
+  const { metric: metricParam } = await searchParams;
+  const selectedMetric: Metric = coerceMetric(metricParam, 'average');
 
-  const [competitor, allRatings, recent, events] = await Promise.all([
+  const [competitor, allRatings, recent, events, allHistory] = await Promise.all([
     getCompetitor(wcaId),
     getCompetitorRatings(wcaId),
     getCompetitorRecentResults(wcaId, 24),
     getEvents(),
+    getCompetitorHistory(wcaId),
   ]);
   if (!competitor) notFound();
 
   const groups = groupRatingsByEvent(allRatings);
 
-  // Fetch histories for both metrics per event (cheap — only one month of snapshots right now).
-  const histories = await Promise.all(
-    groups.flatMap((g) => [
-      getRatingHistory(wcaId, g.eventId, 'single').then(
-        (h) => [`${g.eventId}:single`, h] as const,
-      ),
-      getRatingHistory(wcaId, g.eventId, 'average').then(
-        (h) => [`${g.eventId}:average`, h] as const,
-      ),
-    ]),
-  );
-  const historyByKey = new Map(histories);
+  // Bucket history by (event, metric). Single round-trip, grouped in memory.
+  const historyByKey = new Map<string, RatingHistoryPoint[]>();
+  for (const h of allHistory) {
+    const k = `${h.event_id}:${h.metric}`;
+    const list = historyByKey.get(k) ?? [];
+    list.push({ snapshot_date: h.snapshot_date, rating: h.rating, rank: h.rank });
+    historyByKey.set(k, list);
+  }
+
+  const hasAnySingle = groups.some((g) => g.single != null);
+  const hasAnyAverage = groups.some((g) => g.average != null);
 
   const eventNameById = new Map(events.map((e) => [e.id, e.name] as const));
   const eventFormatById = new Map(events.map((e) => [e.id, e.format] as const));
@@ -117,6 +120,16 @@ export default async function CompetitorPage({ params }: PageProps) {
           >
             WCA profile ↗
           </a>
+          <span aria-hidden="true">·</span>
+          <a
+            href={`/competitors/${competitor.wca_id}/og${selectedMetric === 'average' ? '' : `?metric=${selectedMetric}`}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ink-link"
+            title="View the shareable social-card image"
+          >
+            Share card ↗
+          </a>
         </div>
       </header>
 
@@ -126,21 +139,30 @@ export default async function CompetitorPage({ params }: PageProps) {
           no ratings — not enough recent competition data
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 py-12">
-          {groups.map((g, idx) => (
-            <ProfileEventCard
-              key={g.eventId}
-              eventId={g.eventId}
-              eventName={g.eventName}
-              defaultMetric={g.defaultMetric}
-              single={g.single}
-              average={g.average}
-              historySingle={historyByKey.get(`${g.eventId}:single`) ?? []}
-              historyAverage={historyByKey.get(`${g.eventId}:average`) ?? []}
-              index={idx}
+        <>
+          <div className="pt-10 pb-2 flex items-center justify-between gap-4">
+            <p className="eyebrow">Ratings by event</p>
+            <MetricToggle
+              current={selectedMetric}
+              show={{ single: hasAnySingle, average: hasAnyAverage }}
             />
-          ))}
-        </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 py-8">
+            {groups.map((g, idx) => (
+              <ProfileEventCard
+                key={g.eventId}
+                eventId={g.eventId}
+                eventName={g.eventName}
+                selectedMetric={selectedMetric}
+                single={g.single}
+                average={g.average}
+                historySingle={historyByKey.get(`${g.eventId}:single`) ?? []}
+                historyAverage={historyByKey.get(`${g.eventId}:average`) ?? []}
+                index={idx}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {/* Recent results */}
@@ -235,14 +257,10 @@ function groupRatingsByEvent(rows: CompetitorEventRating[]): EventGroup[] {
     const single = list.find((r) => r.metric === 'single') ?? null;
     const average = list.find((r) => r.metric === 'average') ?? null;
     const anchor = (average ?? single)!;
-    const defaultMetric: Metric = SINGLE_DEFAULT_EVENTS.has(eventId)
-      ? 'single'
-      : 'average';
     groups.push({
       eventId,
       eventName: anchor.event_name,
       eventRank: anchor.event_rank,
-      defaultMetric,
       single,
       average,
     });

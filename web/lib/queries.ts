@@ -1,3 +1,5 @@
+import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import { sql } from './db';
 
 export type Metric = 'single' | 'average';
@@ -28,6 +30,8 @@ export interface LeaderboardRow {
   last_competition_city: string | null;
   previous_rank: number | null;
   delta: number | null;
+  /** Total rows matching the (event, metric, region) filter, before the LIMIT. */
+  total: number;
 }
 
 export interface CompetitorProfile {
@@ -84,26 +88,34 @@ export interface Country {
 }
 
 /** Events list, enriched with which metrics exist per event. */
-export async function getEvents(): Promise<Event[]> {
-  const rows = (await sql()`
-    SELECT e.id, e.name, e.format, e.rank, e.rateable,
-           EXISTS (SELECT 1 FROM app.current_ratings r WHERE r.event_id = e.id AND r.metric='single')  AS has_single,
-           EXISTS (SELECT 1 FROM app.current_ratings r WHERE r.event_id = e.id AND r.metric='average') AS has_average
-    FROM app.events e
-    ORDER BY e.rateable DESC, e.rank ASC
-  `) as Event[];
-  return rows;
-}
+export const getEvents = unstable_cache(
+  async (): Promise<Event[]> => {
+    const rows = (await sql()`
+      SELECT e.id, e.name, e.format, e.rank, e.rateable,
+             EXISTS (SELECT 1 FROM app.current_ratings r WHERE r.event_id = e.id AND r.metric='single')  AS has_single,
+             EXISTS (SELECT 1 FROM app.current_ratings r WHERE r.event_id = e.id AND r.metric='average') AS has_average
+      FROM app.events e
+      ORDER BY e.rateable DESC, e.rank ASC
+    `) as Event[];
+    return rows;
+  },
+  ['getEvents'],
+  { revalidate: 600 },
+);
 
-export async function getEvent(id: string): Promise<Event | null> {
-  const rows = (await sql()`
-    SELECT e.id, e.name, e.format, e.rank, e.rateable,
-           EXISTS (SELECT 1 FROM app.current_ratings r WHERE r.event_id = e.id AND r.metric='single')  AS has_single,
-           EXISTS (SELECT 1 FROM app.current_ratings r WHERE r.event_id = e.id AND r.metric='average') AS has_average
-    FROM app.events e WHERE e.id = ${id}
-  `) as Event[];
-  return rows[0] ?? null;
-}
+export const getEvent = unstable_cache(
+  async (id: string): Promise<Event | null> => {
+    const rows = (await sql()`
+      SELECT e.id, e.name, e.format, e.rank, e.rateable,
+             EXISTS (SELECT 1 FROM app.current_ratings r WHERE r.event_id = e.id AND r.metric='single')  AS has_single,
+             EXISTS (SELECT 1 FROM app.current_ratings r WHERE r.event_id = e.id AND r.metric='average') AS has_average
+      FROM app.events e WHERE e.id = ${id}
+    `) as Event[];
+    return rows[0] ?? null;
+  },
+  ['getEvent'],
+  { revalidate: 600 },
+);
 
 export function defaultMetricFor(event: Event): Metric {
   return event.has_average ? 'average' : 'single';
@@ -115,93 +127,117 @@ export interface LeaderboardOptions {
   limit?: number;
 }
 
-export async function getLeaderboard(
+const _getLeaderboard = cache(
+  async (
+    eventId: string,
+    metric: Metric,
+    region: string | null,
+    limit: number,
+  ): Promise<LeaderboardRow[]> => {
+    // region filter: null => all; '_Continent' => continent_id match; otherwise treat as country_id.
+    const isContinent = region != null && region.startsWith('_');
+    const rows = (await sql()`
+      WITH prev AS (
+        SELECT DISTINCT ON (competitor_id, event_id, metric)
+               competitor_id, event_id, metric, rank
+        FROM scr.rating_history
+        WHERE event_id = ${eventId} AND metric = ${metric}
+          AND snapshot_date < date_trunc('month', current_date)
+        ORDER BY competitor_id, event_id, metric, snapshot_date DESC
+      ),
+      matching AS (
+        SELECT cr.rank,
+               cr.competitor_id,
+               cr.rating::float8 AS rating,
+               cr.raw_rating::float8 AS raw_rating,
+               cr.result_count,
+               cr.last_competed_at,
+               cr.last_competition_id,
+               c.name AS person_name,
+               c.country_id,
+               c.country_iso2,
+               co.continent_name,
+               comp.name AS last_competition_name,
+               comp.city AS last_competition_city,
+               prev.rank AS previous_rank
+          FROM app.current_ratings cr
+          JOIN app.competitors c ON c.wca_id = cr.competitor_id
+          LEFT JOIN app.countries co ON co.id = c.country_id
+          LEFT JOIN app.competitions comp ON comp.id = cr.last_competition_id
+          LEFT JOIN prev ON prev.competitor_id = cr.competitor_id
+                        AND prev.event_id    = cr.event_id
+                        AND prev.metric      = cr.metric
+         WHERE cr.event_id = ${eventId}
+           AND cr.metric = ${metric}
+           AND (${region}::text IS NULL
+                OR (${isContinent} AND co.continent_id = ${region})
+                OR (NOT ${isContinent} AND c.country_id = ${region}))
+      )
+      SELECT rank,
+             competitor_id     AS wca_id,
+             person_name       AS name,
+             country_id,
+             country_iso2,
+             continent_name,
+             rating,
+             raw_rating,
+             result_count,
+             last_competed_at,
+             last_competition_id,
+             last_competition_name,
+             last_competition_city,
+             previous_rank,
+             CASE WHEN previous_rank IS NULL THEN NULL
+                  ELSE (previous_rank - rank)::int
+             END AS delta,
+             count(*) OVER ()::int AS total
+        FROM matching
+       ORDER BY rank ASC, person_name ASC
+       LIMIT ${limit}
+    `) as LeaderboardRow[];
+    return rows;
+  },
+);
+
+/**
+ * Public wrapper with the previous options-object API. Internally normalises
+ * to positional primitive args so React's `cache()` memoises correctly
+ * (cache() uses reference equality on arguments; two object literals with
+ * identical shapes won't dedupe).
+ */
+export function getLeaderboard(
   eventId: string,
   { metric, region = null, limit = 100 }: LeaderboardOptions,
 ): Promise<LeaderboardRow[]> {
-  // region filter: null => all; '_Continent' => continent_id match; otherwise treat as country_id.
-  const isContinent = region != null && region.startsWith('_');
-  const rows = (await sql()`
-    WITH prev AS (
-      SELECT DISTINCT ON (competitor_id, event_id, metric)
-             competitor_id, event_id, metric, rank
-      FROM scr.rating_history
-      WHERE event_id = ${eventId} AND metric = ${metric}
-        AND snapshot_date < date_trunc('month', current_date)
-      ORDER BY competitor_id, event_id, metric, snapshot_date DESC
-    )
-    SELECT cr.rank,
-           cr.competitor_id AS wca_id,
-           c.name,
-           c.country_id,
-           c.country_iso2,
-           co.continent_name,
-           cr.rating::float8 AS rating,
-           cr.raw_rating::float8 AS raw_rating,
-           cr.result_count,
-           cr.last_competed_at,
-           cr.last_competition_id,
-           comp.name AS last_competition_name,
-           comp.city AS last_competition_city,
-           prev.rank AS previous_rank,
-           CASE WHEN prev.rank IS NULL THEN NULL
-                ELSE (prev.rank - cr.rank)::int
-           END AS delta
-      FROM app.current_ratings cr
-      JOIN app.competitors c ON c.wca_id = cr.competitor_id
-      LEFT JOIN app.countries co ON co.id = c.country_id
-      LEFT JOIN app.competitions comp ON comp.id = cr.last_competition_id
-      LEFT JOIN prev ON prev.competitor_id = cr.competitor_id
-                    AND prev.event_id    = cr.event_id
-                    AND prev.metric      = cr.metric
-     WHERE cr.event_id = ${eventId}
-       AND cr.metric = ${metric}
-       AND (${region}::text IS NULL
-            OR (${isContinent} AND co.continent_id = ${region})
-            OR (NOT ${isContinent} AND c.country_id = ${region}))
-     ORDER BY cr.rank ASC, c.name ASC
-     LIMIT ${limit}
-  `) as LeaderboardRow[];
-  return rows;
+  return _getLeaderboard(eventId, metric, region, limit);
 }
 
-export async function getLeaderboardSize(
-  eventId: string,
-  { metric, region = null }: { metric: Metric; region?: string | null },
-): Promise<number> {
-  const isContinent = region != null && region.startsWith('_');
-  const rows = (await sql()`
-    SELECT count(*)::int AS n
-      FROM app.current_ratings cr
-      JOIN app.competitors c ON c.wca_id = cr.competitor_id
-      LEFT JOIN app.countries co ON co.id = c.country_id
-     WHERE cr.event_id = ${eventId}
-       AND cr.metric = ${metric}
-       AND (${region}::text IS NULL
-            OR (${isContinent} AND co.continent_id = ${region})
-            OR (NOT ${isContinent} AND c.country_id = ${region}))
-  `) as { n: number }[];
-  return rows[0]?.n ?? 0;
-}
+export const getContinents = unstable_cache(
+  async (): Promise<Continent[]> => {
+    const rows = (await sql()`
+      SELECT id, name FROM app.continents
+      WHERE name NOT IN ('Multiple Continents')
+      ORDER BY name
+    `) as Continent[];
+    return rows;
+  },
+  ['getContinents'],
+  { revalidate: 3600 },
+);
 
-export async function getContinents(): Promise<Continent[]> {
-  const rows = (await sql()`
-    SELECT id, name FROM app.continents
-    WHERE name NOT IN ('Multiple Continents')
-    ORDER BY name
-  `) as Continent[];
-  return rows;
-}
-
-export async function getCountries(): Promise<Country[]> {
-  const rows = (await sql()`
-    SELECT id, iso2, name, continent_id, continent_name
-    FROM app.countries
-    WHERE continent_id IS NOT NULL
-    ORDER BY continent_name NULLS LAST, name
-  `) as Country[];
-  return rows;
-}
+export const getCountries = unstable_cache(
+  async (): Promise<Country[]> => {
+    const rows = (await sql()`
+      SELECT id, iso2, name, continent_id, continent_name
+      FROM app.countries
+      WHERE continent_id IS NOT NULL
+      ORDER BY continent_name NULLS LAST, name
+    `) as Country[];
+    return rows;
+  },
+  ['getCountries'],
+  { revalidate: 3600 },
+);
 
 export async function getCompetitor(wcaId: string): Promise<CompetitorProfile | null> {
   const rows = (await sql()`
@@ -273,17 +309,44 @@ export async function getRatingHistory(
   return rows;
 }
 
-export async function getMetadata(): Promise<{
-  lastExportDate: string | null;
-  lastImportFinished: string | null;
-}> {
-  const rows = (await sql()`
-    SELECT last_export_date::text AS "lastExportDate",
-           last_import_finished::text AS "lastImportFinished"
-      FROM scr._meta WHERE id = 1
-  `) as { lastExportDate: string | null; lastImportFinished: string | null }[];
-  return rows[0] ?? { lastExportDate: null, lastImportFinished: null };
+/**
+ * All rating-history rows for a competitor across every event and metric,
+ * in one round-trip. Callers group by (event_id, metric) client-side.
+ */
+export interface CompetitorHistoryRow extends RatingHistoryPoint {
+  event_id: string;
+  metric: Metric;
 }
+
+export async function getCompetitorHistory(wcaId: string): Promise<CompetitorHistoryRow[]> {
+  const rows = (await sql()`
+    SELECT event_id,
+           metric,
+           snapshot_date::text AS snapshot_date,
+           rating::float8 AS rating,
+           rank
+      FROM scr.rating_history
+     WHERE competitor_id = ${wcaId}
+     ORDER BY event_id ASC, metric ASC, snapshot_date ASC
+  `) as CompetitorHistoryRow[];
+  return rows;
+}
+
+export const getMetadata = unstable_cache(
+  async (): Promise<{
+    lastExportDate: string | null;
+    lastImportFinished: string | null;
+  }> => {
+    const rows = (await sql()`
+      SELECT last_export_date::text AS "lastExportDate",
+             last_import_finished::text AS "lastImportFinished"
+        FROM scr._meta WHERE id = 1
+    `) as { lastExportDate: string | null; lastImportFinished: string | null }[];
+    return rows[0] ?? { lastExportDate: null, lastImportFinished: null };
+  },
+  ['getMetadata'],
+  { revalidate: 300 },
+);
 
 /** Validate that a metric value is one of our known options. */
 export function coerceMetric(value: unknown, fallback: Metric = 'average'): Metric {

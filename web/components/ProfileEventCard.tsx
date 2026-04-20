@@ -1,6 +1,3 @@
-'use client';
-
-import { useState } from 'react';
 import { RatingHistoryChart } from './RatingHistoryChart';
 import type {
   CompetitorEventRating,
@@ -12,7 +9,8 @@ import { eventLabel, formatRating, formatDate } from '@/lib/format';
 export interface ProfileEventCardProps {
   eventId: string;
   eventName: string;
-  defaultMetric: Metric;
+  /** Which metric the user has currently selected at the page level. */
+  selectedMetric: Metric;
   single: CompetitorEventRating | null;
   average: CompetitorEventRating | null;
   historySingle: RatingHistoryPoint[];
@@ -21,41 +19,30 @@ export interface ProfileEventCardProps {
 }
 
 /**
- * Profile event card with an optional per-card metric toggle.
- *
- * If the competitor is only rated in one metric for this event, the toggle
- * is hidden and we show whichever rating we have. If both exist, the user
- * can flip between them without a page reload.
+ * Display-only profile event card. The chosen metric is driven by the
+ * page-level toggle (see GlobalMetricToggle). If the selected metric
+ * isn't rated for this competitor / event, we fall back to the other
+ * metric and flag it.
  */
 export function ProfileEventCard({
   eventId,
   eventName,
-  defaultMetric,
+  selectedMetric,
   single,
   average,
   historySingle,
   historyAverage,
   index,
 }: ProfileEventCardProps) {
-  // If the default metric has no rating for this competitor, fall back to
-  // whichever metric does.
-  const initial: Metric =
-    (defaultMetric === 'average' ? average : single) ??
-    (defaultMetric === 'average' ? single : average)
-      ? defaultMetric
-      : single
-        ? 'single'
-        : 'average';
-
-  const [metric, setMetric] = useState<Metric>(initial);
-  const hasSingle = !!single;
-  const hasAverage = !!average;
-  const showToggle = hasSingle && hasAverage;
-
-  const active = metric === 'single' ? single : average;
+  const preferred = selectedMetric === 'single' ? single : average;
+  const fallback = selectedMetric === 'single' ? average : single;
+  const active = preferred ?? fallback;
   if (!active) return null;
 
-  const history = metric === 'single' ? historySingle : historyAverage;
+  const isFallback = !preferred && !!fallback;
+  const shownMetric: Metric = active === single ? 'single' : 'average';
+  const history =
+    shownMetric === 'single' ? historySingle : historyAverage;
   const decayed = active.rating < active.raw_rating - 0.5;
 
   return (
@@ -71,13 +58,16 @@ export function ProfileEventCard({
             aria-hidden="true"
           />
           <span>{eventLabel(eventId, eventName)}</span>
+          <span className="text-[var(--color-mute-2)] !tracking-[0.12em]">
+            · {metricLabel(shownMetric)}
+          </span>
         </p>
-        {showToggle && (
-          <MetricPill current={metric} onChange={setMetric} />
-        )}
-        {!showToggle && (
-          <span className="eyebrow !tracking-[0.12em] text-[var(--color-mute-2)]">
-            {metric === 'average' ? 'Average' : 'Single'} only
+        {isFallback && (
+          <span
+            className="eyebrow !tracking-[0.12em] text-[var(--color-mute-2)]"
+            title={`Not rated in ${metricLabel(selectedMetric)} for this event`}
+          >
+            {metricLabel(shownMetric)} only
           </span>
         )}
       </div>
@@ -115,38 +105,6 @@ export function ProfileEventCard({
   );
 }
 
-function MetricPill({
-  current,
-  onChange,
-}: {
-  current: Metric;
-  onChange: (m: Metric) => void;
-}) {
-  return (
-    <div
-      role="group"
-      aria-label="Rating metric"
-      className="inline-flex border rule rounded-[2px] overflow-hidden"
-    >
-      {(['average', 'single'] as const).map((m) => {
-        const active = current === m;
-        return (
-          <button
-            key={m}
-            type="button"
-            onClick={() => onChange(m)}
-            aria-pressed={active}
-            className={[
-              'px-2.5 py-1 text-[10px] tracking-[0.14em] uppercase transition-colors font-body',
-              active
-                ? 'bg-[var(--color-ink)] text-[var(--color-paper)]'
-                : 'text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-paper-2)]',
-            ].join(' ')}
-          >
-            {m === 'average' ? 'Avg' : 'Sin'}
-          </button>
-        );
-      })}
-    </div>
-  );
+function metricLabel(m: Metric): string {
+  return m === 'average' ? 'Average' : 'Single';
 }

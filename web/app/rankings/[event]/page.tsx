@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { EventPicker } from '@/components/EventPicker';
 import { LeaderboardTable } from '@/components/LeaderboardTable';
+import { LeaderboardSkeleton } from '@/components/Skeletons';
 import { LastUpdated } from '@/components/LastUpdated';
 import { MetricToggle } from '@/components/MetricToggle';
 import { RegionPicker } from '@/components/RegionPicker';
@@ -8,12 +10,12 @@ import {
   getEvent,
   getEvents,
   getLeaderboard,
-  getLeaderboardSize,
   getMetadata,
   getContinents,
   getCountries,
   defaultMetricFor,
   coerceMetric,
+  type Metric,
 } from '@/lib/queries';
 import { eventLabel } from '@/lib/format';
 
@@ -41,6 +43,8 @@ export default async function RankingsPage({ params, searchParams }: PageProps) 
   const limit = clampLimit(limitParam);
   const region = regionParam?.length ? regionParam : null;
 
+  // Shell data — all cached via unstable_cache, so this resolves instantly
+  // from the second render onward regardless of the current filter.
   const [event, events, meta, continents, countries] = await Promise.all([
     getEvent(eventId),
     getEvents(),
@@ -51,22 +55,15 @@ export default async function RankingsPage({ params, searchParams }: PageProps) 
   if (!event || !event.rateable) notFound();
 
   const defaultMetric = defaultMetricFor(event);
-  const metric = coerceMetric(metricParam, defaultMetric);
-  // If the requested metric doesn't exist for this event, fall back to the default.
+  const requestedMetric = coerceMetric(metricParam, defaultMetric);
   const metricExists =
-    metric === 'single' ? event.has_single : event.has_average;
-  const effectiveMetric = metricExists ? metric : defaultMetric;
+    requestedMetric === 'single' ? event.has_single : event.has_average;
+  const effectiveMetric = metricExists ? requestedMetric : defaultMetric;
 
-  const [rows, total] = await Promise.all([
-    getLeaderboard(eventId, { metric: effectiveMetric, region, limit }),
-    getLeaderboardSize(eventId, { metric: effectiveMetric, region }),
-  ]);
-
-  // Readable label for the region in the headline.
   const regionLabel = region
     ? region.startsWith('_')
-      ? continents.find((c) => c.id === region)?.name ?? null
-      : countries.find((c) => c.id === region)?.name ?? null
+      ? (continents.find((c) => c.id === region)?.name ?? null)
+      : (countries.find((c) => c.id === region)?.name ?? null)
     : null;
 
   return (
@@ -86,11 +83,20 @@ export default async function RankingsPage({ params, searchParams }: PageProps) 
             {eventLabel(event.id, event.name)}{' '}
             <span className="italic text-[var(--color-accent)]">rankings</span>
           </h1>
-          <div className="mt-4 max-w-[72ch]">
+          <div className="mt-4 max-w-[72ch] flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <LastUpdated
               lastImportFinished={meta.lastImportFinished}
               lastExportDate={meta.lastExportDate}
             />
+            <a
+              href={shareCardHref(event.id, effectiveMetric, region, defaultMetric)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ink-link eyebrow !tracking-[0.16em]"
+              title="View the shareable social-card image"
+            >
+              Share card ↗
+            </a>
           </div>
         </header>
 
@@ -105,30 +111,109 @@ export default async function RankingsPage({ params, searchParams }: PageProps) 
               current={effectiveMetric}
               show={{ single: event.has_single, average: event.has_average }}
             />
-            <span className="font-mono tnum text-[11px] text-[var(--color-mute-2)] whitespace-nowrap">
-              {total.toLocaleString()} rated · top {Math.min(limit, total)}
-            </span>
+            <Suspense
+              key={`stats-${effectiveMetric}-${region ?? 'all'}-${limit}`}
+              fallback={
+                <span className="skel h-[12px] w-[170px] rounded-[2px]" />
+              }
+            >
+              <StatsLine
+                eventId={event.id}
+                metric={effectiveMetric}
+                region={region}
+                limit={limit}
+                regionLabel={regionLabel}
+              />
+            </Suspense>
           </div>
         </div>
 
-        <LeaderboardTable rows={rows} />
-
-        {limit < total && (
-          <div className="flex items-center justify-center mt-10 mb-8">
-            <a
-              href={paramAppend('limit', String(Math.min(total, limit + 200)), {
-                metric: metricParam,
-                region,
-              })}
-              className="eyebrow !tracking-[0.2em] border rule px-6 py-3
-                         hover:bg-[var(--color-paper-2)] transition-colors"
-            >
-              Load next 200 →
-            </a>
-          </div>
-        )}
+        <Suspense
+          key={`rows-${effectiveMetric}-${region ?? 'all'}-${limit}`}
+          fallback={<LeaderboardSkeleton rows={12} />}
+        >
+          <LeaderboardSection
+            eventId={event.id}
+            metric={effectiveMetric}
+            region={region}
+            limit={limit}
+            metricParam={metricParam}
+          />
+        </Suspense>
       </section>
     </>
+  );
+}
+
+/**
+ * The filter-dependent slice. Isolated into its own async component so its
+ * container <Suspense> remounts on filter change, showing the skeleton
+ * during the brief data fetch.
+ */
+async function LeaderboardSection({
+  eventId,
+  metric,
+  region,
+  limit,
+  metricParam,
+}: {
+  eventId: string;
+  metric: Metric;
+  region: string | null;
+  limit: number;
+  metricParam: string | undefined;
+}) {
+  const rows = await getLeaderboard(eventId, { metric, region, limit });
+  const total = rows[0]?.total ?? 0;
+
+  return (
+    <>
+      <LeaderboardTable rows={rows} />
+      {limit < total && (
+        <div className="flex items-center justify-center mt-10 mb-8">
+          <a
+            href={paramAppend('limit', String(Math.min(total, limit + 200)), {
+              metric: metricParam,
+              region,
+            })}
+            className="eyebrow !tracking-[0.2em] border rule px-6 py-3
+                       hover:bg-[var(--color-paper-2)] transition-colors"
+          >
+            Load next 200 →
+          </a>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Small N-rated / top-N / global-rank legend. Same query as the leaderboard
+ * but gated by its own Suspense so the stats skeleton doesn't look weird
+ * next to a fully-loaded table or vice versa.
+ */
+async function StatsLine({
+  eventId,
+  metric,
+  region,
+  limit,
+  regionLabel,
+}: {
+  eventId: string;
+  metric: Metric;
+  region: string | null;
+  limit: number;
+  regionLabel: string | null;
+}) {
+  const rows = await getLeaderboard(eventId, { metric, region, limit });
+  const total = rows[0]?.total ?? 0;
+  return (
+    <span className="font-mono tnum text-[11px] text-[var(--color-mute-2)] whitespace-nowrap">
+      {total.toLocaleString()}
+      {region ? ` in ${regionLabel ?? 'region'}` : ' rated'} · top{' '}
+      {Math.min(limit, total)}
+      {region ? ' · global rank' : ''}
+    </span>
   );
 }
 
@@ -147,4 +232,17 @@ function paramAppend(
   for (const [k, v] of Object.entries(keep)) if (v) sp.set(k, v);
   sp.set(key, value);
   return `?${sp.toString()}`;
+}
+
+function shareCardHref(
+  eventId: string,
+  metric: 'single' | 'average',
+  region: string | null,
+  defaultMetric: 'single' | 'average',
+): string {
+  const sp = new URLSearchParams();
+  if (metric !== defaultMetric) sp.set('metric', metric);
+  if (region) sp.set('region', region);
+  const s = sp.toString();
+  return `/rankings/${eventId}/og${s ? `?${s}` : ''}`;
 }

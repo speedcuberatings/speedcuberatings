@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 /**
  * Minimal streaming chat UI for /ask. POSTs to /api/ask and consumes an SSE
@@ -165,16 +167,24 @@ export function AskChat() {
                 </div>
                 <div
                   className={[
-                    'whitespace-pre-wrap text-[15px] leading-[1.6]',
+                    'text-[15px] leading-[1.6]',
                     t.error
-                      ? 'text-[var(--color-accent)]'
+                      ? 'text-[var(--color-accent)] whitespace-pre-wrap'
                       : 'text-[var(--color-ink)]',
                     t.pending && !t.content ? 'text-[var(--color-muted)] italic' : '',
                   ].join(' ')}
                 >
-                  {t.pending && !t.content ? 'Thinking…' : t.content}
-                  {t.pending && t.content && (
-                    <span className="ml-1 inline-block w-2 animate-pulse">▍</span>
+                  {t.pending && !t.content ? (
+                    'Thinking…'
+                  ) : t.role === 'assistant' && !t.error ? (
+                    <>
+                      <AssistantMarkdown text={t.content} />
+                      {t.pending && (
+                        <span className="ml-1 inline-block w-2 animate-pulse">▍</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="whitespace-pre-wrap">{t.content}</span>
                   )}
                 </div>
               </li>
@@ -214,6 +224,46 @@ export function AskChat() {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function AssistantMarkdown({ text }: { text: string }) {
+  return (
+    <div className="ask-prose">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: (props) => (
+            <a
+              {...props}
+              className="ink-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+          ),
+          code: ({ className, children, ...rest }) => {
+            const isBlock = /language-/.test(className ?? '');
+            if (isBlock) {
+              return (
+                <code className={className} {...rest}>
+                  {children}
+                </code>
+              );
+            }
+            return (
+              <code
+                className="font-mono text-[0.9em] px-1 py-[1px] rounded-sm bg-[color-mix(in_srgb,var(--color-ink)_8%,transparent)]"
+                {...rest}
+              >
+                {children}
+              </code>
+            );
+          },
+        }}
+      >
+        {text}
+      </ReactMarkdown>
     </div>
   );
 }

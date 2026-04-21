@@ -146,6 +146,82 @@
     50%  { opacity: 1; }
     100% { background-position: -20% 0; opacity: 0.75; }
   }
+
+  /*
+   * Markdown rendering for the /ask assistant bubble.
+   * Scoped to .ask-prose so it doesn't leak into the rest of the site.
+   * Intentionally restrained — matches the paper-cream aesthetic and
+   * JetBrains Mono for code.
+   */
+  .ask-prose > *:first-child { margin-top: 0; }
+  .ask-prose > *:last-child  { margin-bottom: 0; }
+  .ask-prose p { margin: 0 0 0.8em; }
+  .ask-prose h1,
+  .ask-prose h2,
+  .ask-prose h3,
+  .ask-prose h4 {
+    font-family: var(--font-display), serif;
+    font-weight: 540;
+    letter-spacing: -0.015em;
+    color: var(--color-ink);
+    line-height: 1.2;
+    margin: 1.2em 0 0.4em;
+  }
+  .ask-prose h1 { font-size: 1.35em; }
+  .ask-prose h2 { font-size: 1.18em; }
+  .ask-prose h3 { font-size: 1.05em; }
+  .ask-prose h4 { font-size: 1em; }
+  .ask-prose ul,
+  .ask-prose ol { margin: 0 0 0.8em; padding-left: 1.4em; }
+  .ask-prose ul { list-style: disc; }
+  .ask-prose ol { list-style: decimal; }
+  .ask-prose li { margin: 0.2em 0; }
+  .ask-prose li > p { margin: 0 0 0.3em; }
+  .ask-prose strong { font-weight: 600; color: var(--color-ink); }
+  .ask-prose em { font-style: italic; }
+  .ask-prose blockquote {
+    border-left: 2px solid var(--color-rule-strong);
+    padding: 0.1em 0 0.1em 0.9em;
+    color: var(--color-muted);
+    margin: 0 0 0.8em;
+  }
+  .ask-prose pre {
+    font-family: var(--font-mono), monospace;
+    font-size: 0.86em;
+    line-height: 1.5;
+    background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+    border: 1px solid var(--color-rule);
+    border-radius: 3px;
+    padding: 0.7em 0.9em;
+    margin: 0 0 0.8em;
+    overflow-x: auto;
+  }
+  .ask-prose pre code {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+  }
+  .ask-prose hr {
+    border: 0;
+    border-top: 1px solid var(--color-rule);
+    margin: 1.2em 0;
+  }
+  .ask-prose table {
+    border-collapse: collapse;
+    margin: 0 0 0.8em;
+    font-size: 0.95em;
+  }
+  .ask-prose th,
+  .ask-prose td {
+    border: 1px solid var(--color-rule);
+    padding: 0.35em 0.65em;
+    text-align: left;
+  }
+  .ask-prose th {
+    background: color-mix(in srgb, var(--color-ink) 4%, transparent);
+    font-weight: 600;
+  }
 }
 
 /* Ensure motion isn't forced on anyone who doesn't want it. */

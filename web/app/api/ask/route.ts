@@ -50,6 +50,24 @@ function isHistory(v: unknown): v is HistoryTurn[] {
   );
 }
 
+/**
+ * The MCP `ask_question` tool appends a "View this search on DeepWiki: <url>"
+ * footer to every response. That URL only works for people signed into our
+ * Devin Enterprise account, so it's noise for everyone else. Strip it.
+ *
+ * Observed shapes (handle both):
+ *   "…\n\nView this search on DeepWiki: https://app.devin.ai/search/…"
+ *   "…\n\n[View this search on DeepWiki](https://app.devin.ai/search/…)"
+ */
+function stripDeepWikiFooter(text: string): string {
+  return text
+    .replace(
+      /\n+\s*\[?View this search on DeepWiki\]?[:\s(]*<?https?:\/\/\S+?>?\)?\s*$/i,
+      '',
+    )
+    .trimEnd();
+}
+
 function buildQuestion(question: string, history: HistoryTurn[]): string {
   if (history.length === 0) return question;
   // ask_question is one-shot; fold prior turns into the prompt so follow-ups
@@ -136,7 +154,7 @@ export async function POST(req: NextRequest) {
           .map((c) => c.text)
           .join('\n\n');
 
-        send('final', { text, isError: !!result.isError });
+        send('final', { text: stripDeepWikiFooter(text), isError: !!result.isError });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         send('error', { message });

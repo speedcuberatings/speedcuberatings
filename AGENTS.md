@@ -72,6 +72,10 @@ DATABASE_URL=… npx tsx scripts/check-db-identity.ts
   `.github/workflows/feedback-triage.yml` to spin up a Devin session
   that posts an initial triage comment on any issue labelled
   `feedback`. v1 `https://api.devin.ai/v1/sessions` endpoint.
+  **Also** set on Vercel (Production + Preview, marked Sensitive) and
+  consumed by `web/app/api/ask/route.ts` to talk to the Devin MCP
+  server for the `/ask` chat page. Same key works for both —
+  Sessions API and MCP share auth.
 - **Whenever you rotate any of the three slots**, run
   `scripts/check-db-identity.ts` against the new value and against the
   other two slots (trigger a GH workflow_dispatch on `ingest.yml` and
@@ -213,6 +217,15 @@ Rateable event list is in `ingest/src/derive/transform.ts`.
   - `/competitors/[wcaId]` — profile (per-event ratings, sparkline,
     recent results). Query param `?metric=`.
   - `/about` — colophon.
+  - `/ask` — **hidden** chat page backed by the Devin MCP server. Not
+    linked from anywhere; page metadata sets `noindex,nofollow`.
+    Client POSTs to `/api/ask`, which opens a Streamable HTTP MCP
+    connection to `https://mcp.devin.ai/mcp` (auth: `DEVIN_API_KEY`),
+    calls the `ask_question` tool scoped to this repo only, and
+    streams the result back as SSE (`progress` / `final` / `error`).
+    Conversation history is folded into the prompt server-side since
+    `ask_question` is one-shot. No DB, no caching, no rate limit —
+    every call hits our Devin account, so keep the URL unlisted.
   - `/calibrate`, `/calibrate/[event]` — **hidden** calibration sandbox
     for the rating formula (see below). Not linked from anywhere on the
     site; `robots.txt` disallows it and the page sets `noindex,nofollow`.

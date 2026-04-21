@@ -1,0 +1,109 @@
+name: Feedback triage
+
+# Kick off a Devin session whenever a new feedback issue is filed so that
+# the issue gets an initial scoping/plan comment for human review.
+#
+# Trigger: the `feedback` label is applied to an issue. The in-site
+# /api/feedback route sets this label at creation time. Re-labelling an
+# existing issue also triggers, which is useful for replaying triage.
+#
+# Required repo secret:
+#   DEVIN_API_KEY — personal or service API key (v1 endpoint).
+#
+# The workflow intentionally does NOT fail the check suite if the Devin
+# call errors — feedback issues are still useful without auto-triage.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  devin-triage:
+    if: github.event.label.name == 'feedback'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create Devin session
+        id: devin
+        continue-on-error: true
+        env:
+          DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$DEVIN_API_KEY" ]; then
+            echo "::warning::DEVIN_API_KEY not configured; skipping"
+            exit 0
+          fi
+
+          PROMPT=$(cat <<'EOF'
+          A new piece of user feedback was submitted to Speedcube Ratings
+          (https://speedcuberatings.com) via the in-site feedback form and
+          filed as GitHub issue __ISSUE_URL__ in __REPO__.
+
+          Your job:
+          1) Read the issue body below to understand what the user is
+             reporting or asking for.
+          2) Clone the repo and read AGENTS.md, then any files relevant
+             to the feedback (pages, components, queries, rating engine,
+             ingest — whatever applies).
+          3) Post ONE comment on the issue containing:
+             - A one-paragraph restatement of what the user is asking for.
+             - Your assessment: is this a bug, a rating-model complaint,
+               a feature request, or unactionable? Any obvious
+               misunderstandings to flag?
+             - If it's a bug or feature: a concrete scope (files likely
+               to touch, rough approach, open questions). Keep this
+               tight — a few bullets, not a full design doc.
+             - A recommendation for labels to add (e.g. bug, enhancement,
+               rating-model, ui, ingest, wontfix, needs-info).
+
+          Do NOT make code changes. Do NOT open a PR. Just the triage
+          comment. If you need more info from the user, say so in the
+          comment.
+
+          --- Issue title ---
+          __ISSUE_TITLE__
+
+          --- Issue body ---
+          __ISSUE_BODY__
+          EOF
+          )
+
+          PROMPT="${PROMPT//__ISSUE_URL__/$ISSUE_URL}"
+          PROMPT="${PROMPT//__REPO__/$REPO}"
+          PROMPT="${PROMPT//__ISSUE_TITLE__/$ISSUE_TITLE}"
+          PROMPT="${PROMPT//__ISSUE_BODY__/$ISSUE_BODY}"
+
+          PAYLOAD=$(jq -n \
+            --arg prompt "$PROMPT" \
+            --arg title "Triage feedback #$ISSUE_NUMBER" \
+            '{prompt: $prompt, title: $title, idempotent: true}')
+
+          RESPONSE=$(curl -sS -X POST "https://api.devin.ai/v1/sessions" \
+            -H "Authorization: Bearer $DEVIN_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          echo "Devin response: $RESPONSE"
+          SESSION_URL=$(echo "$RESPONSE" | jq -r '.url // .session_url // empty')
+          echo "session_url=$SESSION_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Post acknowledgement comment
+        if: steps.devin.outputs.session_url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          SESSION_URL: ${{ steps.devin.outputs.session_url }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --body "Devin is scoping this feedback — triage comment incoming shortly. (Session: $SESSION_URL)"

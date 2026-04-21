@@ -62,6 +62,16 @@ DATABASE_URL=… npx tsx scripts/check-db-identity.ts
   which caused a multi-hour "why is the site stale?" debugging episode.
   If you need a sandbox, create a **Neon branch** off this project,
   not a second project.
+- `GITHUB_FEEDBACK_TOKEN` / `GITHUB_FEEDBACK_REPO` — Vercel-only.
+  Used by `web/app/api/feedback/route.ts` to file a GitHub issue when
+  a user submits the in-site feedback widget. The token is a
+  fine-grained PAT scoped to the feedback repo with only "Issues:
+  Read and write". Repo is `"owner/repo"`, e.g.
+  `speedcuberatings/speedcuberatings`.
+- `DEVIN_API_KEY` — GitHub repo secret. Consumed by
+  `.github/workflows/feedback-triage.yml` to spin up a Devin session
+  that posts an initial triage comment on any issue labelled
+  `feedback`. v1 `https://api.devin.ai/v1/sessions` endpoint.
 - **Whenever you rotate any of the three slots**, run
   `scripts/check-db-identity.ts` against the new value and against the
   other two slots (trigger a GH workflow_dispatch on `ingest.yml` and
@@ -278,6 +288,29 @@ people you want to have access.
   dev server's pool endpoint and checks engine output vs production for
   any (event, metric) pair. MAE > 0.05 is the regression threshold.
 
+## In-site feedback widget
+
+A floating "Feedback" button anchored bottom-right on every page
+(`web/components/FeedbackButton.tsx`, mounted in `app/layout.tsx`).
+Opens a modal with a textarea, an optional email field, and the current
+page URL captured automatically.
+
+- **Flow.** Modal POSTs to `/api/feedback` → route handler files a GH
+  issue with labels `feedback` + `needs-triage` using
+  `GITHUB_FEEDBACK_TOKEN` + `GITHUB_FEEDBACK_REPO` → GH Actions
+  workflow `feedback-triage.yml` listens on `issues.labeled` and, when
+  the `feedback` label is applied, kicks off a Devin session via the v1
+  Sessions API. Devin is prompted to post ONE triage comment on the
+  issue (scope + label recommendations) and not to open a PR.
+- **No auth, no captcha, no rate limit.** Fine for launch-day traffic.
+  If we start getting spam issues, the cheapest next step is adding
+  Cloudflare Turnstile to the modal + verifying the token in the route
+  handler; per-IP rate limiting via Upstash is the step after.
+- **Privacy.** The feedback text, optional email, and page URL go into
+  a public GitHub issue verbatim. The modal warns users not to submit
+  anything sensitive. `@`-mentions in the user body are escaped with a
+  zero-width joiner so they don't ping random GitHub users.
+
 ## Favicon
 
 - `web/app/icon.svg` is a static deterministic favicon for SSR and
@@ -314,6 +347,7 @@ ingest/                  Ingest pipeline (Node/TS, runs in GH Actions)
 web/                     Next.js 15 site (Server + Client components)
   app/                   Routes + OG images
     api/calibrate/pool/  Candidate-pool JSON endpoint for /calibrate
+    api/feedback/        POST endpoint that files a GH issue from the widget
     calibrate/[event]/   Hidden calibration sandbox (noindex, unlinked)
   components/            Shared UI
     calibrate/           Calibration page components (client-heavy)

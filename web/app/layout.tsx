@@ -6,6 +6,7 @@ import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import '@cubing/icons';
 import { RandomFavicon } from '@/components/RandomFavicon';
+import { FeedbackButton } from '@/components/FeedbackButton';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="flex-1">{children}</main>
           <SiteFooter />
         </div>
+        <FeedbackButton />
         <SpeedInsights />
         <Analytics />
       </body>

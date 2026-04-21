@@ -411,6 +411,35 @@ export function CalibrationForm({
                 }))
               }
             />
+            <div className="mt-3 pt-3 border-t rule">
+              <p className="eyebrow mb-2 !tracking-[0.12em]">DNF counting mode</p>
+              <Toggle
+                label="Weight by recency"
+                hint="on = applies the same temporal decay (0.99^days) to DNF counts"
+                value={config.extras.dnfPenalty.weighted}
+                onChange={(v) =>
+                  update((c) => ({
+                    ...c,
+                    extras: {
+                      ...c.extras,
+                      dnfPenalty: { ...c.extras.dnfPenalty, weighted: v },
+                    },
+                  }))
+                }
+              />
+              <DnfModeToggle
+                value={config.extras.dnfPenalty.mode}
+                onChange={(v) =>
+                  update((c) => ({
+                    ...c,
+                    extras: {
+                      ...c.extras,
+                      dnfPenalty: { ...c.extras.dnfPenalty, mode: v },
+                    },
+                  }))
+                }
+              />
+            </div>
           </>
         )}
       </Section>
@@ -743,6 +772,44 @@ export function Toggle({
         </span>
       )}
     </button>
+  );
+}
+
+function DnfModeToggle({
+  value,
+  onChange,
+}: {
+  value: 'attempt' | 'round';
+  onChange: (v: 'attempt' | 'round') => void;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 py-1">
+      <span className="text-[13px] font-body text-[var(--color-ink)]">
+        Counting granularity
+      </span>
+      <div className="flex gap-2 mt-1">
+        {(['attempt', 'round'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onChange(m)}
+            className={[
+              'px-3 py-1.5 rounded-[3px] text-[12px] font-mono transition-colors cursor-pointer',
+              value === m
+                ? 'bg-[var(--color-ink)] text-[var(--color-paper)]'
+                : 'bg-[var(--color-paper-2)] text-[var(--color-muted)] hover:text-[var(--color-ink)]',
+            ].join(' ')}
+          >
+            {m === 'attempt' ? 'Per-attempt' : 'Per-round'}
+          </button>
+        ))}
+      </div>
+      <span className="text-[11px] italic text-[var(--color-muted)] leading-snug mt-1">
+        {value === 'attempt'
+          ? 'counts individual DNF solves ÷ total attempts'
+          : 'binary per round — 1 if all attempts DNF, 0 if any success (better for BLD)'}
+      </span>
+    </div>
   );
 }
 

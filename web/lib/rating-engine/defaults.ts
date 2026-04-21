@@ -91,6 +91,8 @@ export const DEFAULT_CONFIG: RatingConfig = {
       baselineRate: 0.1,
       floor: 0.5,
       ceil: 1.5,
+      weighted: false,
+      mode: 'attempt' as const,
     },
     formatWeights: {
       enabled: false,

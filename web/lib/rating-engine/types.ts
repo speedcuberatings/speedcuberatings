@@ -64,6 +64,14 @@ export interface ExtrasConfig {
     baselineRate: number;    // 0.1 — expected background rate; adjustment pivots here
     floor: number;           // 0.5 — never cut rating by more than half
     ceil: number;            // 1.5 — never boost rating by more than 50%
+    /** Whether to weight DNF rate by the same temporal decay as rating scores.
+     *  When false (default), all in-window rounds count equally toward DNF rate. */
+    weighted: boolean;       // false — when true, applies weightBase^daysOld to DNF counts
+    /** How to count DNFs.
+     *  'attempt': dnfCount / expectedAttempts per round (default).
+     *  'round': binary per round — 1 if all attempts DNF (best <= 0), 0 otherwise.
+     *           Better for BLD where the round is ranked on single. */
+    mode: 'attempt' | 'round'; // 'attempt'
   };
   /**
    * Per-format weight. Multiplies each round's Kinch-post-bonus score by

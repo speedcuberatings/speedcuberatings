@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
           name: 'ask_question',
           arguments: {
             question: buildQuestion(question, history),
-            repoNames: [REPO],
+            repoName: REPO,
           },
         });
 

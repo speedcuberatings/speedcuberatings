@@ -338,12 +338,20 @@ page URL captured automatically.
   `.github/workflows/feedback-implement.yml`, which spins up a Devin
   session prompted to read the issue + any prior triage comment,
   implement the change on a feature branch, and open a PR against
-  `main`. The label gate is the auth boundary — GitHub only lets
-  collaborators with triage/write access apply labels, so random
-  commenters can't burn credits. Devin is told to stop and ask
-  questions rather than guess on ambiguous requests. Reserve for
-  scoped, low-risk work; bigger changes should still go through a
-  human-driven Devin session.
+  `main`. Devin is told to stop and ask questions rather than guess
+  on ambiguous requests. Reserve for scoped, low-risk work; bigger
+  changes should still go through a human-driven Devin session.
+- **Progressive auto-labelling.** The triage Devin session is also
+  allowed to apply `devin-implement` itself at the end of triage,
+  gated on a conservative confidence checklist in the prompt
+  (clear scope, handful of files, no schema/rating-model/ingest/
+  auth/user-data changes, modest size, no open questions). When the
+  criteria aren't met, triage posts the comment and leaves the label
+  to a human. The auth boundary therefore has two modes: human
+  collaborators for any labelling, and triage Devin for the narrow
+  "obvious small fix" subset. If triage starts auto-labelling things
+  it shouldn't, tighten the checklist or revert to human-only
+  labelling by removing step 4 from the triage prompt.
 
 **Required labels** (create once with `gh label create`):
 `feedback`, `needs-triage`, `devin-implement`.

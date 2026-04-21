@@ -64,10 +64,34 @@ jobs:
                tight — a few bullets, not a full design doc.
              - A recommendation for labels to add (e.g. bug, enhancement,
                rating-model, ui, ingest, wontfix, needs-info).
+          4) Decide whether this feedback is ready for auto-implementation.
+             Apply the `devin-implement` label to the issue (via
+             `gh issue edit __ISSUE_NUMBER__ --repo __REPO__ --add-label
+             devin-implement`) ONLY if ALL of the following are true:
+             - It's a clear, concrete bug fix or small feature request.
+             - Scope is well-understood: you know which files to touch
+               and there are no material open questions.
+             - It's low risk: no schema migration, no rating-model
+               constant changes, no ingest pipeline changes, no auth /
+               user-data touching, no destructive DB work.
+             - It's modest in size: a handful of files, well under a
+               day of work. Think "fix a typo, adjust a color,
+               correct a query filter, add a small UI element",
+               NOT "redesign the leaderboard".
+             - You are confident enough to bet credits on it. When in
+               doubt, do NOT label — leave it for a human to decide.
+             If you apply the label, say so at the end of your triage
+             comment (one line: "Auto-labelled `devin-implement` — a
+             PR session will start shortly.") so the reader knows why
+             the implement workflow fired. If you do NOT apply the
+             label, end your comment with a one-line explanation of
+             why (e.g. "Holding for human review — needs a UX call
+             on X").
 
-          Do NOT make code changes. Do NOT open a PR. Just the triage
-          comment. If you need more info from the user, say so in the
-          comment.
+          Do NOT make code changes. Do NOT open a PR. Triage comment
+          (and conditionally the `devin-implement` label) only. If you
+          need more info from the user, say so in the comment and do
+          NOT apply the label.
 
           --- Issue title ---
           __ISSUE_TITLE__
@@ -79,6 +103,7 @@ jobs:
 
           PROMPT="${PROMPT//__ISSUE_URL__/$ISSUE_URL}"
           PROMPT="${PROMPT//__REPO__/$REPO}"
+          PROMPT="${PROMPT//__ISSUE_NUMBER__/$ISSUE_NUMBER}"
           PROMPT="${PROMPT//__ISSUE_TITLE__/$ISSUE_TITLE}"
           PROMPT="${PROMPT//__ISSUE_BODY__/$ISSUE_BODY}"
 

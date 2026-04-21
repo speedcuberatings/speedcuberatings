@@ -84,15 +84,39 @@ export async function GET(request: Request) {
   //    min() over `app.official_results`, which is already windowed to
   //    the last 2 years per competitor, so the WR drifted upward when
   //    the record holder retired from the event (e.g. 4bld single).
-  const eventMetaRows = (await sql()`
-    SELECT e.id,
-           e.name,
-           e.format,
-           e.wr_single,
-           e.wr_average
-      FROM app.events e
-     WHERE e.id = ${eventId}
-  `) as EventMetaRow[];
+  //
+  //    The columns are added in a schema migration that's applied by
+  //    the next ingest derive pass. Until that runs, fall back to the
+  //    windowed min over `app.official_results` so the route keeps
+  //    serving rather than 500-ing — engine parity will be off by the
+  //    WR ratio until derive catches up, but the page still works.
+  let eventMetaRows: EventMetaRow[];
+  try {
+    eventMetaRows = (await sql()`
+      SELECT e.id,
+             e.name,
+             e.format,
+             e.wr_single,
+             e.wr_average
+        FROM app.events e
+       WHERE e.id = ${eventId}
+    `) as EventMetaRow[];
+  } catch (err) {
+    // Postgres 42703 ("column does not exist") → schema hasn't been
+    // rebuilt with wr_single/wr_average yet. Re-derive the WRs from
+    // the windowed pool and carry on.
+    const code = (err as { code?: string } | null)?.code;
+    if (code !== '42703') throw err;
+    eventMetaRows = (await sql()`
+      SELECT e.id,
+             e.name,
+             e.format,
+             (SELECT MIN(best)    FROM app.official_results r WHERE r.event_id = e.id AND best > 0)    AS wr_single,
+             (SELECT MIN(average) FROM app.official_results r WHERE r.event_id = e.id AND average > 0) AS wr_average
+        FROM app.events e
+       WHERE e.id = ${eventId}
+    `) as EventMetaRow[];
+  }
   const meta = eventMetaRows[0];
   if (!meta) return NextResponse.json({ error: 'event not found' }, { status: 404 });
 

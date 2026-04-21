@@ -117,7 +117,14 @@ export const getEvent = unstable_cache(
   { revalidate: 600 },
 );
 
+/**
+ * Blind events (3bld / 4bld / 5bld / multi-blind) default to single
+ * ratings — the single is the headline result, the mean is secondary.
+ */
+const BLIND_EVENTS = new Set(['333bf', '444bf', '555bf', '333mbf']);
+
 export function defaultMetricFor(event: Event): Metric {
+  if (BLIND_EVENTS.has(event.id) && event.has_single) return 'single';
   return event.has_average ? 'average' : 'single';
 }
 

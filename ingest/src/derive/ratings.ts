@@ -9,6 +9,11 @@ import { log } from '../log.ts';
  * his video "Our ranking system is broken. Let's fix it!"
  * (https://www.youtube.com/watch?v=2lU-d6OUU3Q). This implementation is
  * calibrated against the reference leaderboard shown in that video.
+ *
+ * MIRROR NOTICE: `web/lib/rating-engine/defaults.ts` keeps a client-side
+ * copy of these constants so the `/calibrate` sandbox can recompute
+ * ratings in the browser. The two must stay in sync; the calibration
+ * page surfaces an engine-parity pill that flashes if they drift.
  */
 const WEIGHT_BASE = 0.99;        // per day, within-window recency weight
 const INACTIVITY_BASE = 0.9995;  // per day beyond grace

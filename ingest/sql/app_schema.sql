@@ -58,12 +58,19 @@ CREATE INDEX competitions_end_date_idx ON app_staging.competitions (end_date DES
 -- Flattened, typed view of official WCA results from the last N years.
 -- Enriched with competition date and championship scope for easy consumption
 -- by the rating pipeline.
+--
+-- `format_id` and `dnf_count` were added for the calibration sandbox
+-- (see web/app/calibrate/) so the client-side rating engine can filter /
+-- penalise by round format (Ao5 / Mo3 / Bo3 / Bo1) and by attempt
+-- reliability. Safe to ignore from the production rating path — it still
+-- only reads best / average.
 CREATE TABLE app_staging.official_results (
   result_id              bigint PRIMARY KEY,
   competitor_id          text   NOT NULL,
   competition_id         text   NOT NULL,
   event_id               text   NOT NULL,
   round_type_id          text   NOT NULL,
+  format_id              text,              -- WCA format: 'a' (Ao5), 'm' (Mo3), '3' (Bo3), '2' (Bo2), '1' (Bo1), '5' (Bo5)
   is_final               boolean NOT NULL,
   best                   int,
   average                int,
@@ -71,6 +78,7 @@ CREATE TABLE app_staging.official_results (
   position               int,
   regional_single_record text,
   regional_average_record text,
+  dnf_count              smallint,          -- count of DNF/DNS attempts across value1..value5 (0-5)
   competition_date       date   NOT NULL,
   is_championship        boolean NOT NULL,
   championship_scope     text

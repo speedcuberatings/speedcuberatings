@@ -148,11 +148,26 @@ export async function transform(): Promise<{
       `CREATE INDEX ON last_competed_per_event (person_id, event_id)`,
     );
 
+    // `format_id` and `dnf_count` feed the calibration sandbox on the web
+    // side. The production rating path ignores them; `best`/`average`
+    // drive the main pipeline as before.
+    //
+    // `dnf_count` note: The WCA TSV export v2 doesn't include per-attempt
+    // values (value1..value5) — those live in the `result_attempts`
+    // table, which we intentionally skip (see INCLUDED_TABLES in
+    // wca/import.ts). So we can only derive a best-effort lower bound
+    // from `average`: `average = -1` means 2+ DNFs in the round
+    // (enough to make the trimmed mean a DNF), so we record `2` in that
+    // case. Rows where best > 0 and average > 0 could still have had one
+    // DNF (trimmed out of the middle three); we report `0` for those,
+    // which undercounts. Re-include `result_attempts` in ingest if the
+    // DNF-rate penalty becomes a load-bearing part of the model.
     await client.query(`
       INSERT INTO app_staging.official_results (
         result_id, competitor_id, competition_id, event_id, round_type_id,
-        is_final, best, average, metric_value, position,
+        format_id, is_final, best, average, metric_value, position,
         regional_single_record, regional_average_record,
+        dnf_count,
         competition_date, is_championship, championship_scope
       )
       SELECT r.id::bigint,
@@ -160,6 +175,7 @@ export async function transform(): Promise<{
              r.competition_id,
              r.event_id,
              r.round_type_id,
+             NULLIF(r.format_id, '') AS format_id,
              rt.final = '1' AS is_final,
              r.best::int,
              r.average::int,
@@ -167,6 +183,7 @@ export async function transform(): Promise<{
              r.pos::int,
              NULLIF(NULLIF(r.regional_single_record, ''), 'NULL'),
              NULLIF(NULLIF(r.regional_average_record, ''), 'NULL'),
+             (CASE WHEN r.average::int = -1 THEN 2 ELSE 0 END)::smallint AS dnf_count,
              cd.end_date AS competition_date,
              cc.scope_rank IS NOT NULL AS is_championship,
              CASE cc.scope_rank WHEN 3 THEN 'world' WHEN 2 THEN 'continental' WHEN 1 THEN 'national' END

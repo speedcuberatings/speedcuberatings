@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { eventLabel } from '@/lib/format';
 
 export interface EventPickerItem {
@@ -17,15 +17,30 @@ export interface EventPickerItem {
  * shows on hover.
  *
  * The active event is indicated by an accent underline under its icon.
+ *
+ * `basePath` defaults to `/rankings` for the main leaderboard; the
+ * calibration page passes `/calibrate` so clicking an event stays within
+ * the sandbox instead of jumping back to the public rankings.
+ *
+ * `preserveQuery` carries the current URL's search params across event
+ * switches. Ranking pages leave this off (switching to a different event
+ * resets filters); the calibration page turns it on so the `?c=` config
+ * diff survives navigation between events.
  */
 export function EventPicker({
   items,
   activeEventId,
+  basePath = '/rankings',
+  preserveQuery = false,
 }: {
   items: EventPickerItem[];
   activeEventId?: string;
+  basePath?: string;
+  preserveQuery?: boolean;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const qs = preserveQuery ? searchParams.toString() : '';
   const rateable = items.filter((e) => e.rateable);
 
   return (
@@ -35,8 +50,8 @@ export function EventPicker({
     >
       <ul className="mx-auto flex items-center gap-1 sm:gap-2 px-4 sm:px-8 py-2 w-max max-w-[1200px]">
         {rateable.map((e) => {
-          const href = `/rankings/${e.id}`;
-          const active = activeEventId === e.id || pathname === href;
+          const href = `${basePath}/${e.id}${qs ? `?${qs}` : ''}`;
+          const active = activeEventId === e.id || pathname === `${basePath}/${e.id}`;
           const label = eventLabel(e.id, e.name);
           return (
             <li key={e.id}>

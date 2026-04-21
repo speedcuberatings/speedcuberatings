@@ -35,6 +35,10 @@ pnpm --filter @scr/web lint
 DATABASE_URL=… npx tsx scripts/verify-rating.ts <wcaId>
 DATABASE_URL=… npx tsx scripts/sweep-rating.ts
 
+# Engine parity (against local /api/calibrate/pool) — requires dev server
+DATABASE_URL=… npx tsx scripts/verify-engine-parity.ts           # default 333 avg
+DATABASE_URL=… npx tsx scripts/verify-engine-parity.ts 222 single
+
 # DB identity check — confirms which Neon project a given DATABASE_URL
 # actually points at. Useful after rotating Vercel or GH Actions secrets.
 DATABASE_URL=… npx tsx scripts/check-db-identity.ts
@@ -189,6 +193,12 @@ Rateable event list is in `ingest/src/derive/transform.ts`.
   - `/competitors/[wcaId]` — profile (per-event ratings, sparkline,
     recent results). Query param `?metric=`.
   - `/about` — colophon.
+  - `/calibrate`, `/calibrate/[event]` — **hidden** calibration sandbox
+    for the rating formula (see below). Not linked from anywhere on the
+    site; `robots.txt` disallows it and the page sets `noindex,nofollow`.
+    Query param `?metric=`, `?c=` (base64 config diff).
+  - `/api/calibrate/pool` — JSON endpoint for the calibration page's
+    candidate pool. `?event=`, `?metric=`, `?poolSize=` (10-200, default 50).
   - `/opengraph-image`, `/rankings/[event]/opengraph-image`,
     `/competitors/[wcaId]/opengraph-image` — Next's OG image
     convention (unfiltered, seen by social crawlers).
@@ -216,6 +226,57 @@ Rateable event list is in `ingest/src/derive/transform.ts`.
 - OG images (rendered via `next/og` / Satori) use locally-committed
   TTF files under `web/lib/og-fonts-files/` so Satori gets raw
   TrueType and not the WOFF2 Google Fonts normally serves.
+
+## Calibration sandbox
+
+A hidden, unlinked page at `/calibrate/[event]` that lets a non-technical
+collaborator tweak the rating formula and watch the top-N leaderboard
+re-rank instantly. Ship-gated by obscurity — no auth, no link from
+anywhere on the site, `robots.txt` disallows it. Share the URL with
+people you want to have access.
+
+- **Architecture.** Client-side rating engine recomputes ratings in the
+  browser on every knob turn. The server's only job is to return a
+  pre-baked "candidate pool" of results for the selected (event, metric)
+  via `/api/calibrate/pool`. Pool is ~1.2 MB uncompressed / ~60 KB
+  gzipped per event × metric for 50 candidates.
+- **Engine mirror.** `web/lib/rating-engine/` is a TypeScript port of
+  `ingest/src/derive/ratings.ts`. Default config reproduces production
+  ratings to MAE ~0.01 (rounding-level). If these two ever drift, the
+  `StatusBar` pill on the page flashes and `scripts/verify-engine-parity.ts`
+  fails. Keep in sync; bump `ENGINE_VERSION` in `defaults.ts` for any
+  schema change.
+- **Tunable parameters.** Every constant in `ratings.ts` (weight base,
+  inactivity base, grace days, Kinch scale, placement & record bonus,
+  champ multipliers…) plus three experimental "extras" which are off by
+  default so default = production:
+  - `dnfPenalty` — rate-based penalty (no-op today, see limitation below)
+  - `formatWeights` — per-format multipliers (Ao5, Mo3, Bo3, Bo5, Bo2, Bo1)
+  - `roundTypeFilter` — include-list by `round_type_id`
+- **Per-event overrides.** Any global parameter can be overridden on a
+  per-event basis, with a per-field "inherit from global" toggle.
+  Handles the case where e.g. 333mbf needs very different handling than
+  333 without forcing a one-size-fits-all formula.
+- **Config persistence.** URL-encoded diff (short base64 in `?c=`) and
+  full JSON export / import. No database table. Sharing is URL or file.
+- **Required schema.** Calibration needs `format_id` and `dnf_count`
+  columns on `app.official_results` (added 2026-04). These are populated
+  by `ingest/src/derive/transform.ts` on every derive run. If you see
+  `column "format_id" does not exist` errors in the `/api/calibrate/pool`
+  route, the DB hasn't had derive run since the column was added — kick
+  an ingest via workflow_dispatch or run locally.
+- **Known limitation: DNF-rate penalty is gated on data we don't import
+  today.** The WCA TSV export doesn't include per-attempt values
+  (`result_attempts` is deliberately skipped in `INCLUDED_TABLES` to
+  keep us under the Neon storage cap). `dnf_count` is populated from a
+  lower bound — only rounds whose average is DNF (`-1`) contribute.
+  Single-DNF rounds (one failed attempt in an Ao5 that still produced a
+  valid trimmed mean) are invisible. The `dnfPenalty` extra therefore
+  only penalises the clearest cases. Re-include `result_attempts` when
+  this becomes load-bearing.
+- **Verification.** `scripts/verify-engine-parity.ts` hits the running
+  dev server's pool endpoint and checks engine output vs production for
+  any (event, metric) pair. MAE > 0.05 is the regression threshold.
 
 ## Favicon
 
@@ -252,8 +313,12 @@ ingest/                  Ingest pipeline (Node/TS, runs in GH Actions)
     index.ts             Pipeline orchestrator
 web/                     Next.js 15 site (Server + Client components)
   app/                   Routes + OG images
+    api/calibrate/pool/  Candidate-pool JSON endpoint for /calibrate
+    calibrate/[event]/   Hidden calibration sandbox (noindex, unlinked)
   components/            Shared UI
+    calibrate/           Calibration page components (client-heavy)
   lib/                   DB client, queries, formatters, OG renderers
+    rating-engine/       Client-side port of ingest/src/derive/ratings.ts
 scripts/                 One-off ops scripts (rating verification)
 .github/workflows/       CI/cron
 ```

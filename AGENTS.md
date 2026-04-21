@@ -89,6 +89,13 @@ DATABASE_URL=… npx tsx scripts/check-db-identity.ts
 - `app.*` — derived, typed, app-facing schema built each ingest run.
   Tables: `events`, `competitors`, `continents`, `countries`,
   `competitions`, `official_results`, `current_ratings`.
+  - `events.wr_single` / `events.wr_average` are the all-time world
+    records per metric, sourced from `raw_wca.results` during derive.
+    These are the canonical Kinch denominators — both the ingest's
+    rating pass and the calibration sandbox's `/api/calibrate/pool`
+    endpoint read from this column, so the two stay in lockstep.
+    Nullable; some events (BLD singles, FMC, multi) don't have
+    averages.
   - `current_ratings` is keyed on `(competitor_id, event_id, metric)`
     where `metric ∈ {'single','average'}`. Most events have both rows.
   - `rank` uses SQL `RANK()` so ties share a rank and the next slot

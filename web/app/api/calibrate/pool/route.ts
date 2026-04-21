@@ -74,19 +74,22 @@ export async function GET(request: Request) {
   const metric = metricParam as Metric;
   const poolSize = Math.max(10, Math.min(200, Number.isFinite(poolSizeRaw) ? poolSizeRaw : 50));
 
-  // 1) Event metadata + per-metric WR. We compute WR from official_results
-  //    rather than raw_wca to keep the "web reads only app.*/scr.*"
-  //    invariant. The min of metric_value / best / average within
-  //    official_results is the same record as raw_wca's min for the
-  //    rateable window — for all-time WR you'd want raw_wca, but since
-  //    we only rank competitors who competed in the last 2 years,
-  //    all-time vs recent WRs are effectively the same for Kinch purposes.
+  // 1) Event metadata + per-metric all-time WR.
+  //    `app.events.wr_single` / `wr_average` are populated by the derive
+  //    stage (ingest/src/derive/transform.ts) from raw_wca.results, and
+  //    are the same all-time minimums the ingest's rating pass uses as
+  //    the Kinch denominator. Reading from here keeps the "web reads
+  //    only from app.*/scr.*" invariant intact while still giving the
+  //    sandbox the true all-time WR — historically this route computed
+  //    min() over `app.official_results`, which is already windowed to
+  //    the last 2 years per competitor, so the WR drifted upward when
+  //    the record holder retired from the event (e.g. 4bld single).
   const eventMetaRows = (await sql()`
     SELECT e.id,
            e.name,
            e.format,
-           (SELECT MIN(best)    FROM app.official_results r WHERE r.event_id = e.id AND best > 0)    AS wr_single,
-           (SELECT MIN(average) FROM app.official_results r WHERE r.event_id = e.id AND average > 0) AS wr_average
+           e.wr_single,
+           e.wr_average
       FROM app.events e
      WHERE e.id = ${eventId}
   `) as EventMetaRow[];

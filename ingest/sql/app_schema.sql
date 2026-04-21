@@ -12,7 +12,14 @@ CREATE TABLE app_staging.events (
   name       text NOT NULL,
   format     text NOT NULL,     -- 'time' | 'number' | 'multi'
   rank       int  NOT NULL,
-  rateable   boolean NOT NULL
+  rateable   boolean NOT NULL,
+  -- All-time world records per metric, sourced from raw_wca.results. These
+  -- are the canonical Kinch denominators for the rating model (James
+  -- confirmed, April 2026: "I would use the all-time world record still").
+  -- Nullable because not every event has both metrics (FMC/BLD singles,
+  -- multi-blind, etc. only have `single`).
+  wr_single  int,
+  wr_average int
 );
 
 CREATE TABLE app_staging.continents (

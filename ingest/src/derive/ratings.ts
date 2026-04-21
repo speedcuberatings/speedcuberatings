@@ -230,16 +230,19 @@ async function computeEvent(
   today: Date,
   out: string[],
 ): Promise<boolean> {
-  // World records per metric (lowest non-zero value all-time in `raw_wca`).
+  // World records per metric: all-time lowest non-zero value, sourced
+  // from `app_staging.events` (populated in transform.ts from
+  // raw_wca.results). This is the single source of truth for the Kinch
+  // denominator — the calibration sandbox's pool endpoint reads the same
+  // column so engine parity holds even when the WR holder is outside
+  // the current 2-year window.
   const wrRow = await (async () => {
     const client = await makeClient();
     try {
-      const r = await client.query<{ wr_single: string | null; wr_average: string | null }>(
-        `SELECT
-           min(best::int)    FILTER (WHERE best::int > 0)    ::text AS wr_single,
-           min(average::int) FILTER (WHERE average::int > 0) ::text AS wr_average
-         FROM raw_wca.results
-         WHERE event_id = $1`,
+      const r = await client.query<{ wr_single: number | null; wr_average: number | null }>(
+        `SELECT wr_single, wr_average
+           FROM app_staging.events
+          WHERE id = $1`,
         [eventId],
       );
       return r.rows[0] ?? { wr_single: null, wr_average: null };
@@ -247,8 +250,8 @@ async function computeEvent(
       await client.end();
     }
   })();
-  const wrSingle = wrRow.wr_single ? Number(wrRow.wr_single) : null;
-  const wrAverage = wrRow.wr_average ? Number(wrRow.wr_average) : null;
+  const wrSingle = wrRow.wr_single != null ? Number(wrRow.wr_single) : null;
+  const wrAverage = wrRow.wr_average != null ? Number(wrRow.wr_average) : null;
 
   let emittedAny = false;
 

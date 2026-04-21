@@ -48,6 +48,29 @@ export async function transform(): Promise<{
       FROM raw_wca.events
     `);
 
+    // Populate per-event all-time world records from raw_wca.results.
+    // These are the canonical Kinch denominators for the rating model —
+    // the same all-time minimums the ingest's rating pass uses and the
+    // calibration sandbox's pool endpoint serves. Reading from this one
+    // source means the "web only reads from app.*/scr.*" invariant holds
+    // while still giving the sandbox the true all-time WR (rather than
+    // the windowed min of `app.official_results`, which drifts when the
+    // WR holder hasn't competed in the last 2 years — see 4bld).
+    await client.query(`
+      WITH wr AS (
+        SELECT event_id,
+               MIN(best::int)    FILTER (WHERE best::int > 0)    AS wr_single,
+               MIN(average::int) FILTER (WHERE average::int > 0) AS wr_average
+          FROM raw_wca.results
+         GROUP BY event_id
+      )
+      UPDATE app_staging.events e
+         SET wr_single  = wr.wr_single,
+             wr_average = wr.wr_average
+        FROM wr
+       WHERE wr.event_id = e.id
+    `);
+
     await client.query(`
       INSERT INTO app_staging.continents (id, name, record_name)
       SELECT id, name, NULLIF(record_name, '')

@@ -91,6 +91,9 @@ function SiteHeader() {
           <Link href="/rankings/333" className="hover:text-[var(--color-ink)] transition-colors">
             Rankings
           </Link>
+          <Link href="/calibrate" className="hover:text-[var(--color-ink)] transition-colors">
+            Calibrate
+          </Link>
           <Link href="/about" className="hover:text-[var(--color-ink)] transition-colors">
             About
           </Link>

@@ -691,7 +691,7 @@ export function NumberKnob({
         </p>
       )}
       {hint && (
-        <p className="text-[10px] italic text-[var(--color-mute-2)] mt-0.5 leading-snug opacity-70">
+        <p className="text-[11px] italic text-[var(--color-muted)] mt-0.5 leading-snug">
           {hint}
         </p>
       )}
@@ -738,7 +738,7 @@ export function Toggle({
         </span>
       </span>
       {hint && (
-        <span className="text-[10px] italic text-[var(--color-mute-2)] leading-snug opacity-70 text-left">
+        <span className="text-[11px] italic text-[var(--color-muted)] leading-snug text-left">
           {hint}
         </span>
       )}

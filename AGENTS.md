@@ -321,6 +321,20 @@ page URL captured automatically.
   a public GitHub issue verbatim. The modal warns users not to submit
   anything sensitive. `@`-mentions in the user body are escaped with a
   zero-width joiner so they don't ping random GitHub users.
+- **Auto-implement via label.** Applying the `devin-implement` label
+  to any issue (feedback or otherwise) triggers
+  `.github/workflows/feedback-implement.yml`, which spins up a Devin
+  session prompted to read the issue + any prior triage comment,
+  implement the change on a feature branch, and open a PR against
+  `main`. The label gate is the auth boundary — GitHub only lets
+  collaborators with triage/write access apply labels, so random
+  commenters can't burn credits. Devin is told to stop and ask
+  questions rather than guess on ambiguous requests. Reserve for
+  scoped, low-risk work; bigger changes should still go through a
+  human-driven Devin session.
+
+**Required labels** (create once with `gh label create`):
+`feedback`, `needs-triage`, `devin-implement`.
 
 ## Favicon
 

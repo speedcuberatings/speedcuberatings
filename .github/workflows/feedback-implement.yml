@@ -1,0 +1,119 @@
+name: Feedback implement
+
+# Kick off a Devin session to IMPLEMENT an issue and open a PR. Used on
+# feedback issues after triage, but works on any labelled issue.
+#
+# Trigger: the `devin-implement` label is applied to an issue. GitHub
+# only allows labelling by collaborators with triage/write access, so
+# the label itself is the auth gate — random commenters can't spin up
+# Devin sessions and burn credits.
+#
+# Required repo secret:
+#   DEVIN_API_KEY — same key as feedback-triage.yml.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  devin-implement:
+    if: github.event.label.name == 'devin-implement'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create Devin session
+        id: devin
+        continue-on-error: true
+        env:
+          DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.event.sender.login }}
+        run: |
+          if [ -z "$DEVIN_API_KEY" ]; then
+            echo "::warning::DEVIN_API_KEY not configured; skipping"
+            exit 0
+          fi
+
+          PROMPT=$(cat <<'EOF'
+          You're being asked to implement the change described in GitHub
+          issue __ISSUE_URL__ in the repo __REPO__. The repo owner
+          (__ACTOR__) applied the `devin-implement` label, which means
+          the triage step is done and they want a PR.
+
+          Your job:
+          1) Read the full issue thread on GitHub, including any prior
+             triage comment from a previous Devin session. That comment
+             is your starting scope — follow it unless it's clearly
+             wrong, in which case note the disagreement in the PR
+             description.
+          2) Read AGENTS.md and any files the triage comment points to.
+             Follow the conventions described there (paper-cream
+             aesthetic, restrained motion, `app.*`/`scr.*` schema
+             boundary for web queries, etc.).
+          3) Implement the change on a feature branch off of `main`.
+             Run `pnpm --filter @scr/web build` (and any other relevant
+             checks — tsc, lint) to confirm it compiles before pushing.
+          4) Open a PR against `main` with:
+             - Title referencing the issue ("Fixes #__ISSUE_NUMBER__" or
+               "Addresses #__ISSUE_NUMBER__").
+             - Summary of what you changed and why.
+             - A short test plan / screenshots if UI-visible.
+             - Any open questions or follow-ups you punted on.
+          5) Do NOT merge. Leave the PR in a reviewable state and post
+             a comment on the original issue linking to the PR.
+
+          If the request is ambiguous or would require choices you don't
+          have strong ground to make (e.g. big UX calls, schema
+          migrations, anything user-data-touching), STOP and post a
+          comment on the issue asking the specific question, rather
+          than guessing.
+
+          --- Issue title ---
+          __ISSUE_TITLE__
+
+          --- Issue body ---
+          __ISSUE_BODY__
+          EOF
+          )
+
+          PROMPT="${PROMPT//__ISSUE_URL__/$ISSUE_URL}"
+          PROMPT="${PROMPT//__REPO__/$REPO}"
+          PROMPT="${PROMPT//__ISSUE_TITLE__/$ISSUE_TITLE}"
+          PROMPT="${PROMPT//__ISSUE_BODY__/$ISSUE_BODY}"
+          PROMPT="${PROMPT//__ISSUE_NUMBER__/$ISSUE_NUMBER}"
+          PROMPT="${PROMPT//__ACTOR__/$ACTOR}"
+
+          PAYLOAD=$(jq -n \
+            --arg prompt "$PROMPT" \
+            --arg title "Implement issue #$ISSUE_NUMBER" \
+            '{prompt: $prompt, title: $title, idempotent: false}')
+
+          RESPONSE=$(curl -sS -X POST "https://api.devin.ai/v1/sessions" \
+            -H "Authorization: Bearer $DEVIN_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          echo "Devin response: $RESPONSE"
+          SESSION_URL=$(echo "$RESPONSE" | jq -r '.url // .session_url // empty')
+          echo "session_url=$SESSION_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Post acknowledgement comment
+        if: steps.devin.outputs.session_url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          SESSION_URL: ${{ steps.devin.outputs.session_url }}
+          ACTOR: ${{ github.event.sender.login }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --body "@$ACTOR kicked off a Devin implementation session — a PR should appear here shortly. (Session: $SESSION_URL)"

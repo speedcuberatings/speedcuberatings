@@ -84,7 +84,10 @@ export const DEFAULT_CONFIG: RatingConfig = {
     dnfPenalty: {
       enabled: false,
       alpha: 1.0,
-      bonusAlpha: 0,
+      // Symmetric with `alpha` so enabling the extra gives two-sided
+      // behaviour out of the box (penalty above baseline, reward below).
+      // Set to 0 for the old penalty-only behaviour.
+      bonusAlpha: 1.0,
       baselineRate: 0.1,
       floor: 0.5,
       ceil: 1.5,

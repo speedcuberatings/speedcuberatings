@@ -166,6 +166,15 @@ export async function GET(request: Request) {
   // in one of two fixed columns — so we pick the column once up front
   // and branch on a tiny enum rather than building dynamic SQL. Both
   // branches are otherwise identical.
+  //
+  // For the `single` metric we deliberately do NOT filter `best > 0`:
+  // all-DNF rounds (`best = -1`) carry DNF-rate signal for blind / FMC
+  // / multi events that would otherwise be invisible. The engine filters
+  // `value > 0` before the rating mean, but counts DNFs across the full
+  // in-window set. For `average`, we keep `average > 0` because
+  // `average` is usually 0 (no mean computed) for Bo1/Bo2/Bo3 events
+  // and including those rows would inflate the DNF-rate denominator
+  // without adding signal.
   const wcaIds = candidateRows.map((r) => r.wca_id);
   const resultRows = (metric === 'single'
     ? ((await sql()`
@@ -186,7 +195,6 @@ export async function GET(request: Request) {
          WHERE event_id = ${eventId}
            AND competitor_id = ANY(${wcaIds}::text[])
            AND best IS NOT NULL
-           AND best > 0
          ORDER BY competition_date DESC
       `) as ResultQueryRow[])
     : ((await sql()`

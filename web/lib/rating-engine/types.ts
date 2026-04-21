@@ -52,13 +52,15 @@ export interface ExtrasConfig {
    *
    * The penalty side matches the approach James Macdiarmid suggested
    * for BLD / FMC / multi where DNF rate is meaningful. The reward side
-   * (off by default — `bonusAlpha = 0`) lets calibrators optionally
+   * (defaults to `bonusAlpha = alpha`, so enabling the extra gives a
+   * symmetric two-sided adjustment out of the box) lets calibrators
    * boost competitors whose reliability is better than the baseline.
+   * Set `bonusAlpha = 0` for the original penalty-only behaviour.
    */
   dnfPenalty: {
     enabled: boolean;
     alpha: number;           // 1.0 — penalty slope when above baseline
-    bonusAlpha: number;      // 0   — reward slope when below baseline (off by default)
+    bonusAlpha: number;      // 1.0 — reward slope when below baseline (set to 0 for penalty-only)
     baselineRate: number;    // 0.1 — expected background rate; adjustment pivots here
     floor: number;           // 0.5 — never cut rating by more than half
     ceil: number;            // 1.5 — never boost rating by more than 50%

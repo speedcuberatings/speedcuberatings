@@ -175,16 +175,36 @@ export async function transform(): Promise<{
     // side. The production rating path ignores them; `best`/`average`
     // drive the main pipeline as before.
     //
-    // `dnf_count` note: The WCA TSV export v2 doesn't include per-attempt
+    // We include **all** rounds in the 2-year window here, not just the
+    // ones with a positive `best`. All-DNF rounds (`best = -1`) carry
+    // essential DNF-rate signal for blind / FMC / multi events — without
+    // them, a competitor who fails every BLD round in the window looks
+    // identical to one with zero attempts. The prod rating query in
+    // ratings.ts filters `${col} > 0` itself, so these rows don't reach
+    // rating math; they only feed DNF accounting and profile display
+    // (see getCompetitorRecentResults, which preserves old behaviour by
+    // filtering best>0 at the query level).
+    //
+    // `dnf_count` note: the WCA TSV export doesn't include per-attempt
     // values (value1..value5) — those live in the `result_attempts`
     // table, which we intentionally skip (see INCLUDED_TABLES in
-    // wca/import.ts). So we can only derive a best-effort lower bound
-    // from `average`: `average = -1` means 2+ DNFs in the round
-    // (enough to make the trimmed mean a DNF), so we record `2` in that
-    // case. Rows where best > 0 and average > 0 could still have had one
-    // DNF (trimmed out of the middle three); we report `0` for those,
-    // which undercounts. Re-include `result_attempts` in ingest if the
-    // DNF-rate penalty becomes a load-bearing part of the model.
+    // wca/import.ts). So we can only derive a lower bound from the
+    // aggregate fields. The 3-state signal WCA gives us per round is:
+    //
+    //   best > 0 AND average  > 0  → 0 DNFs (all attempts valid)
+    //   best > 0 AND average = -1  → ≥1 DNF (exact count unknown)
+    //   best = -1                  → all attempts DNF
+    //
+    // We flatten that into an integer using per-format conventions:
+    //   Ao5 ('a'): avg=-1 ⇒ ≥2 DNFs (1 DNF is trimmed, middle-3 mean
+    //              stays valid), so record 2; all-DNF ⇒ 5.
+    //   Mo3/Bo3/Bo5 ('m','3','5'): avg=-1 ⇒ ≥1 DNF (any DNF taints the
+    //              mean); all-DNF ⇒ N (3/3/5).
+    //   Bo1/Bo2 ('1','2'): no average column, so the only signal is
+    //              best: DNF ⇒ 1 or 2 respectively.
+    // Rounds where best > 0 and average > 0 could still have had one
+    // DNF hidden by Ao5 trimming; we can't see it. Re-include
+    // `result_attempts` if we need exact counts.
     await client.query(`
       INSERT INTO app_staging.official_results (
         result_id, competitor_id, competition_id, event_id, round_type_id,
@@ -206,7 +226,27 @@ export async function transform(): Promise<{
              r.pos::int,
              NULLIF(NULLIF(r.regional_single_record, ''), 'NULL'),
              NULLIF(NULLIF(r.regional_average_record, ''), 'NULL'),
-             (CASE WHEN r.average::int = -1 THEN 2 ELSE 0 END)::smallint AS dnf_count,
+             (CASE
+                WHEN r.best::int = -1 THEN
+                  CASE NULLIF(r.format_id, '')
+                    WHEN 'a' THEN 5
+                    WHEN 'm' THEN 3
+                    WHEN '5' THEN 5
+                    WHEN '3' THEN 3
+                    WHEN '2' THEN 2
+                    WHEN '1' THEN 1
+                    ELSE 1
+                  END
+                WHEN r.average::int = -1 THEN
+                  CASE NULLIF(r.format_id, '')
+                    WHEN 'a' THEN 2
+                    WHEN 'm' THEN 1
+                    WHEN '5' THEN 1
+                    WHEN '3' THEN 1
+                    ELSE 0
+                  END
+                ELSE 0
+              END)::smallint AS dnf_count,
              cd.end_date AS competition_date,
              cc.scope_rank IS NOT NULL AS is_championship,
              CASE cc.scope_rank WHEN 3 THEN 'world' WHEN 2 THEN 'continental' WHEN 1 THEN 'national' END
@@ -217,7 +257,6 @@ export async function transform(): Promise<{
            ON lce.person_id = r.person_id AND lce.event_id = r.event_id
       LEFT JOIN comp_championship cc ON cc.competition_id = r.competition_id
       WHERE cd.end_date >= lce.last_date - INTERVAL '${RESULTS_WINDOW_YEARS} years'
-        AND r.best::int > 0
     `);
 
     await client.query(`DROP TABLE last_competed_per_event`);

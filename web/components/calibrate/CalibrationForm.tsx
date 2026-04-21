@@ -334,7 +334,7 @@ export function CalibrationForm({
             />
             <NumberKnob
               label="β (bonus slope)"
-              help="Slope applied when dnfRate < baseline. 0 = penalty-only (default). rating *= min(ceil, 1 + β × (baseline − dnfRate))"
+              help="Slope applied when dnfRate < baseline — the reward side. Default matches α for symmetric two-sided behaviour. Set to 0 for penalty-only. rating *= min(ceil, 1 + β × (baseline − dnfRate))"
               hint="↑ higher = bigger reward for low-DNF competitors (0 = no reward)"
               min={0}
               max={5}

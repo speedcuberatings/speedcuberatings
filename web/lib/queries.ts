@@ -292,6 +292,10 @@ export async function getCompetitorRecentResults(
       FROM app.official_results r
       JOIN app.events e ON e.id = r.event_id
      WHERE r.competitor_id = ${wcaId}
+       -- Hide all-DNF rounds from the "recent results" list. They're
+       -- in official_results now for DNF-rate accounting (see
+       -- transform.ts), but they're noise on the profile page.
+       AND r.best > 0
      ORDER BY r.competition_date DESC, r.event_id ASC
      LIMIT ${limit}
   `) as CompetitorRecentResult[];

@@ -177,17 +177,20 @@ Rateable event list is in `ingest/src/derive/transform.ts`.
 
 ### Rating model follow-ups
 
-- **DNF handling (TODO).** `transform.ts` filters `r.best::int > 0`, which
-  silently drops DNF rounds before ratings see them. For events where
-  DNFs are common (3bld / 4bld / 5bld / FMC / multi / clock) this
-  overstates unreliable solvers. James Macdiarmid flagged this as a
-  known gap in the source-video comments and suggested a per-event DNF
-  coefficient roughly like
-  `rating *= max(floor, 1 − α × max(0, dnf_rate_in_window − baseline_rate))`
-  with `α` and `baseline_rate` tuned per event (BLD expects more DNFs
-  than 3×3). Implement as a second-pass adjustment inside `ratings.ts`
-  that reads in-window DNF counts; calibrate against known reliable vs
-  unreliable solvers before shipping.
+- **DNF handling (partial).** All-DNF rounds (`best = -1`) are now
+  stored in `app.official_results` with a per-format `dnf_count`, so
+  the calibration sandbox's DNF-rate penalty sees real signal for
+  BLD / FMC / multi events instead of always reading 0%. The
+  production rating path still ignores `dnf_count` — we compute the
+  DNF-rate multiplier only in the client-side `/calibrate` engine
+  behind the `dnfPenalty` extra. Once tuned there, the next step is a
+  second-pass adjustment inside `ratings.ts`:
+  `rating *= max(floor, 1 − α × max(0, dnf_rate − baseline))`
+  with `α` and `baseline` tunable per event. James Macdiarmid flagged
+  this as a known gap in the source-video comments and suggested
+  roughly this shape; BLD expects higher baseline DNF rates than 3×3.
+  The exact DNFs-per-round count is still a lower bound: see "Known
+  limitation" in the calibration section below.
 - **Window is anchored on the competitor's most recent competition in
   the event**, not the current date. A competitor who last competed 18
   months ago still rates off their full 24-month context, and
@@ -286,15 +289,24 @@ people you want to have access.
   `column "format_id" does not exist` errors in the `/api/calibrate/pool`
   route, the DB hasn't had derive run since the column was added — kick
   an ingest via workflow_dispatch or run locally.
-- **Known limitation: DNF-rate penalty is gated on data we don't import
-  today.** The WCA TSV export doesn't include per-attempt values
-  (`result_attempts` is deliberately skipped in `INCLUDED_TABLES` to
-  keep us under the Neon storage cap). `dnf_count` is populated from a
-  lower bound — only rounds whose average is DNF (`-1`) contribute.
-  Single-DNF rounds (one failed attempt in an Ao5 that still produced a
-  valid trimmed mean) are invisible. The `dnfPenalty` extra therefore
-  only penalises the clearest cases. Re-include `result_attempts` when
-  this becomes load-bearing.
+- **Known limitation: DNF-rate is still a lower bound.** The WCA TSV
+  export doesn't include per-attempt values (`result_attempts` is
+  deliberately skipped in `INCLUDED_TABLES` to keep us under the Neon
+  storage cap), so we derive `dnf_count` from the 3-state signal WCA
+  gives us per round:
+  - `best > 0 AND average > 0` → 0 DNFs
+  - `best > 0 AND average = -1` → ≥1 DNF (Ao5 contributes 2, since a
+    single DNF is trimmed and leaves the mean valid; Mo3/Bo3/Bo5
+    contribute 1)
+  - `best = -1` → all attempts DNF (N per format: 5/3/3/5/2/1)
+  All-DNF rounds ARE stored in `app.official_results` (keyed by the
+  `last_competed_per_event` successful-anchor window); the prod rating
+  query in `ratings.ts` filters `${col} > 0` itself so they don't
+  reach rating math, but they do feed DNF accounting and show up in
+  the calibration sandbox's DNF rate. The `getCompetitorRecentResults`
+  query filters `best > 0` so DNF rounds don't clutter profile pages.
+  The single-DNF-in-valid-Ao5 case remains invisible — re-include
+  `result_attempts` when that becomes load-bearing.
 - **Verification.** `scripts/verify-engine-parity.ts` hits the running
   dev server's pool endpoint and checks engine output vs production for
   any (event, metric) pair. MAE > 0.05 is the regression threshold.

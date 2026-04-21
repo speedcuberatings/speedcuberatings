@@ -24,7 +24,6 @@ import { CalibrationApp } from '@/components/calibrate/CalibrationApp';
  */
 export const metadata: Metadata = {
   title: 'Calibrate',
-  robots: { index: false, follow: false },
 };
 
 interface PageProps {

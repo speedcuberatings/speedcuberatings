@@ -199,8 +199,14 @@ function computeOneCandidate(
   // 2. Determine anchor date (competitor's most recent result in-pool)
   //    and keep only results within `windowYears` of it. Production
   //    does this anchoring too (see transform.ts's `last_competed_per_event`).
+  //
+  //    We anchor on successful (value > 0) rounds only, matching
+  //    production's `last_competed_per_event` which filters `best > 0`.
+  //    Otherwise a competitor whose most recent activity in the event
+  //    was an all-DNF round would have their window drift.
   let anchorMs = -Infinity;
   for (const r of prefiltered) {
+    if (r.value <= 0) continue;
     const t = dateStrToMs(r.competitionDate);
     if (t > anchorMs) anchorMs = t;
   }
@@ -208,10 +214,14 @@ function computeOneCandidate(
 
   const windowStartMs =
     anchorMs - Math.round(windowYears * 365.25 * 86_400_000);
-  const windowResults = prefiltered.filter((r) => {
+  // In-window rows, including all-DNF rounds — these feed the DNF-rate
+  // counter. Rating math runs over `windowResults` (the `value > 0`
+  // subset of this).
+  const windowAll = prefiltered.filter((r) => {
     const t = dateStrToMs(r.competitionDate);
-    return t >= windowStartMs && r.value > 0;
+    return t >= windowStartMs;
   });
+  const windowResults = windowAll.filter((r) => r.value > 0);
 
   if (windowResults.length < minResults) {
     return emptyRow(wcaId, name, countryId, countryIso2);
@@ -220,8 +230,6 @@ function computeOneCandidate(
   // 3. For each result: kinch × bonus × format-weight × weight(days).
   let weightedScoreSum = 0;
   let weightSum = 0;
-  let dnfCountTotal = 0;
-  let attemptCountTotal = 0;
   let lastDateMs = -Infinity;
   let lastCompetedAt: string | null = null;
 
@@ -250,15 +258,22 @@ function computeOneCandidate(
     weightedScoreSum += contrib;
     weightSum += w;
 
-    // Accumulate DNF stats for optional penalty.
-    dnfCountTotal += r.dnfCount;
-    attemptCountTotal += expectedAttempts(r.formatId);
-
     const t = dateStrToMs(r.competitionDate);
     if (t > lastDateMs) {
       lastDateMs = t;
       lastCompetedAt = r.competitionDate;
     }
+  }
+
+  // Accumulate DNF stats across ALL in-window rounds (including
+  // all-DNF rounds whose `value` is -1), so DNF rate reflects actual
+  // competitor reliability rather than reliability conditioned on a
+  // successful round existing.
+  let dnfCountTotal = 0;
+  let attemptCountTotal = 0;
+  for (const r of windowAll) {
+    dnfCountTotal += r.dnfCount;
+    attemptCountTotal += expectedAttempts(r.formatId);
   }
 
   if (weightSum === 0) {

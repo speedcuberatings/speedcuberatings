@@ -41,6 +41,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Window years"
           help="Anchored on the competitor's most recent round in the event."
+          hint="↑ longer window = more results included, smooths ratings"
           min={0.25}
           max={2}
           step={0.25}
@@ -51,6 +52,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Minimum results"
           help="Competitors with fewer rounds in window are excluded."
+          hint="↑ higher = fewer competitors qualify for ranking"
           min={1}
           max={10}
           step={1}
@@ -64,6 +66,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Weight base"
           help="Per-day recency decay. 0.99 ^ days_since_competition."
+          hint="↓ lower = recent results matter more, old results fade faster"
           min={0.9}
           max={1}
           step={0.001}
@@ -75,6 +78,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Inactivity base"
           help="Per-day decay beyond grace. 0.9995 ^ (days − grace)."
+          hint="↓ lower = inactive competitors lose rating faster"
           min={0.99}
           max={1}
           step={0.0001}
@@ -86,6 +90,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Default grace days"
           help="Days of inactivity before decay kicks in (overridable per-event)."
+          hint="↑ longer grace = competitors can be inactive longer before penalty"
           min={0}
           max={730}
           step={5}
@@ -99,6 +104,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Kinch scale"
           help="Score = kinchScale × (WR / your_result). Scales the whole leaderboard."
+          hint="↑ higher = all ratings scale up proportionally"
           min={10}
           max={1000}
           step={10}
@@ -112,6 +118,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Base offset"
           help="Flat term (R+S+T+U + baseOffset), applied to every round."
+          hint="↑ higher = bigger placement bonus for everyone"
           min={0}
           max={2}
           step={0.1}
@@ -124,6 +131,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Scale"
           help="Multiplier on (R+S+T+U+base) × champMult."
+          hint="↑ higher = placement matters more in final rating"
           min={0}
           max={1}
           step={0.01}
@@ -136,6 +144,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Cleanup offset"
           help="Subtracted after scaling. Negative by default."
+          hint="↓ more negative = reduces the placement bonus further"
           min={-0.5}
           max={0.5}
           step={0.005}
@@ -148,6 +157,7 @@ export function CalibrationForm({
         />
         <NumberKnob
           label="R · Final weight"
+          hint="↑ higher = competing in finals boosts rating more"
           min={0}
           max={4}
           step={0.25}
@@ -159,6 +169,7 @@ export function CalibrationForm({
         />
         <NumberKnob
           label="S · Bronze+ weight"
+          hint="↑ higher = top-3 finishers get a bigger bonus"
           min={0}
           max={4}
           step={0.25}
@@ -170,6 +181,7 @@ export function CalibrationForm({
         />
         <NumberKnob
           label="T · Silver+ weight"
+          hint="↑ higher = top-2 finishers get a bigger bonus"
           min={0}
           max={4}
           step={0.25}
@@ -182,6 +194,7 @@ export function CalibrationForm({
         <NumberKnob
           label="U · Gold weight"
           help="Added on top of R+S+T when the competitor wins the final."
+          hint="↑ higher = winning the final boosts rating more"
           min={0}
           max={4}
           step={0.25}
@@ -198,6 +211,7 @@ export function CalibrationForm({
             <NumberKnob
               key={k}
               label={labelForScope(k)}
+              hint="↑ higher = results at this tier boost rating more"
               min={0}
               max={10}
               step={0.25}
@@ -221,6 +235,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Any record (NR+)"
           help="Added when round set any national-or-better record."
+          hint="↑ higher = setting a national record boosts rating more"
           min={0}
           max={10}
           step={0.5}
@@ -232,6 +247,7 @@ export function CalibrationForm({
         />
         <NumberKnob
           label="Continental or higher"
+          hint="↑ higher = continental/world records boost rating more"
           min={0}
           max={10}
           step={0.5}
@@ -246,6 +262,7 @@ export function CalibrationForm({
         />
         <NumberKnob
           label="World record"
+          hint="↑ higher = world records boost rating more"
           min={0}
           max={10}
           step={0.5}
@@ -261,6 +278,7 @@ export function CalibrationForm({
         <NumberKnob
           label="Bonus modifier"
           help="1 + bonusModifier × (placementScore + recordScore)"
+          hint="↑ higher = placement and record bonuses have more impact"
           min={0}
           max={0.05}
           step={0.001}
@@ -281,6 +299,7 @@ export function CalibrationForm({
       >
         <Toggle
           label="Enable DNF adjustment"
+          hint="on = penalises competitors with high DNF rates"
           value={config.extras.dnfPenalty.enabled}
           onChange={(v) =>
             update((c) => ({
@@ -297,6 +316,7 @@ export function CalibrationForm({
             <NumberKnob
               label="α (penalty slope)"
               help="Slope applied when dnfRate > baseline. rating *= max(floor, 1 − α × (dnfRate − baseline))"
+              hint="↑ higher = heavier penalty for high-DNF competitors"
               min={0}
               max={5}
               step={0.1}
@@ -315,6 +335,7 @@ export function CalibrationForm({
             <NumberKnob
               label="β (bonus slope)"
               help="Slope applied when dnfRate < baseline. 0 = penalty-only (default). rating *= min(ceil, 1 + β × (baseline − dnfRate))"
+              hint="↑ higher = bigger reward for low-DNF competitors (0 = no reward)"
               min={0}
               max={5}
               step={0.1}
@@ -333,6 +354,7 @@ export function CalibrationForm({
             <NumberKnob
               label="Baseline DNF rate"
               help="Expected background DNF rate. Penalty applies above; bonus applies below (if β > 0)."
+              hint="↑ higher = more DNFs tolerated before penalty kicks in"
               min={0}
               max={1}
               step={0.01}
@@ -352,6 +374,7 @@ export function CalibrationForm({
             <NumberKnob
               label="Floor"
               help="Never multiply rating by less than this."
+              hint="↑ higher = limits the maximum penalty (protects high-DNF competitors)"
               min={0.1}
               max={1}
               step={0.05}
@@ -371,6 +394,7 @@ export function CalibrationForm({
             <NumberKnob
               label="Ceil"
               help="Never multiply rating by more than this (caps the bonus side)."
+              hint="↑ higher = allows bigger reward for low-DNF competitors"
               min={1}
               max={2}
               step={0.05}
@@ -397,6 +421,7 @@ export function CalibrationForm({
       >
         <Toggle
           label="Enable per-format weights"
+          hint="on = weight rounds differently based on format (Ao5, Mo3, etc.)"
           value={config.extras.formatWeights.enabled}
           onChange={(v) =>
             update((c) => ({
@@ -419,6 +444,7 @@ export function CalibrationForm({
               <NumberKnob
                 key={f}
                 label={labelForFormat(f)}
+                hint="↑ higher = this format contributes more to rating (0 = excluded)"
                 min={0}
                 max={2}
                 step={0.05}
@@ -452,6 +478,7 @@ export function CalibrationForm({
       >
         <Toggle
           label="Enable round-type filter"
+          hint="on = only selected round types count toward rating"
           value={config.extras.roundTypeFilter.enabled}
           onChange={(v) =>
             update((c) => ({
@@ -583,6 +610,7 @@ function Caret({ open }: { open: boolean }) {
 export function NumberKnob({
   label,
   help,
+  hint,
   min,
   max,
   step,
@@ -593,6 +621,7 @@ export function NumberKnob({
 }: {
   label: string;
   help?: string;
+  hint?: string;
   min: number;
   max: number;
   step: number;
@@ -661,6 +690,11 @@ export function NumberKnob({
           {help}
         </p>
       )}
+      {hint && (
+        <p className="text-[10px] italic text-[var(--color-mute-2)] mt-0.5 leading-snug opacity-70">
+          {hint}
+        </p>
+      )}
       {precision && <span className="sr-only">precision {precision}</span>}
     </div>
   );
@@ -668,10 +702,12 @@ export function NumberKnob({
 
 export function Toggle({
   label,
+  hint,
   value,
   onChange,
 }: {
   label: string;
+  hint?: string;
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
@@ -681,10 +717,11 @@ export function Toggle({
       role="switch"
       aria-checked={value}
       onClick={() => onChange(!value)}
-      className="flex items-center justify-between gap-3 w-full py-1
+      className="flex flex-col gap-0.5 w-full py-1
                  text-[13px] font-body text-[var(--color-ink)] cursor-pointer"
     >
-      <span>{label}</span>
+      <span className="flex items-center justify-between gap-3 w-full">
+        <span>{label}</span>
       <span
         className={[
           'inline-flex items-center w-[36px] h-[20px] rounded-full p-[2px] transition-colors',
@@ -698,7 +735,13 @@ export function Toggle({
                      shadow-sm transition-transform"
           style={{ transform: value ? 'translateX(16px)' : 'translateX(0)' }}
         />
+        </span>
       </span>
+      {hint && (
+        <span className="text-[10px] italic text-[var(--color-mute-2)] leading-snug opacity-70 text-left">
+          {hint}
+        </span>
+      )}
     </button>
   );
 }

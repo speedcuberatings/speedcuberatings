@@ -269,11 +269,33 @@ function computeOneCandidate(
   // all-DNF rounds whose `value` is -1), so DNF rate reflects actual
   // competitor reliability rather than reliability conditioned on a
   // successful round existing.
-  let dnfCountTotal = 0;
-  let attemptCountTotal = 0;
+  //
+  // Two dimensions controlled by dnfPenalty config:
+  //   weighted: when true, apply the same temporal decay (weightBase^daysOld)
+  //             so recent reliability matters more than historical.
+  //   mode 'attempt': dnfCount / expectedAttempts per round (default).
+  //   mode 'round':   binary per round — 1 if all attempts DNF, 0 otherwise.
+  //                   Better for BLD where the round is ranked on single.
+  let dnfNumerator = 0;
+  let dnfDenominator = 0;
   for (const r of windowAll) {
-    dnfCountTotal += r.dnfCount;
-    attemptCountTotal += expectedAttempts(r.formatId);
+    const daysOld = Math.max(
+      0,
+      Math.floor((today_ms - dateStrToMs(r.competitionDate)) / 86_400_000),
+    );
+    const w = extras.dnfPenalty.weighted ? Math.pow(weightBase, daysOld) : 1;
+
+    if (extras.dnfPenalty.mode === 'round') {
+      // Round-level: binary — did the competitor fail the entire round?
+      // value <= 0 with dnfCount > 0 means all attempts DNF → failed round.
+      const failed = r.value <= 0 && r.dnfCount > 0 ? 1 : 0;
+      dnfNumerator += failed * w;
+      dnfDenominator += w;
+    } else {
+      // Attempt-level (current default): raw counts, optionally weighted.
+      dnfNumerator += r.dnfCount * w;
+      dnfDenominator += expectedAttempts(r.formatId) * w;
+    }
   }
 
   if (weightSum === 0) {
@@ -286,8 +308,8 @@ function computeOneCandidate(
   //    baseline and (optionally, when `bonusAlpha > 0`) a reward when
   //    the rate is below it. `bonusAlpha` defaults to 0 so enabling the
   //    extra with defaults preserves the original one-sided behaviour.
-  if (extras.dnfPenalty.enabled && attemptCountTotal > 0) {
-    const rate = dnfCountTotal / attemptCountTotal;
+  if (extras.dnfPenalty.enabled && dnfDenominator > 0) {
+    const rate = dnfNumerator / dnfDenominator;
     const deficit = rate - extras.dnfPenalty.baselineRate;
     let mult: number;
     if (deficit >= 0) {

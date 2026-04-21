@@ -44,18 +44,24 @@ export interface RecordConfig {
  */
 export interface ExtrasConfig {
   /**
-   * DNF-rate penalty. Multiply the raw rating by
+   * DNF-rate adjustment. Multiply the raw rating by a piecewise factor:
    *
-   *   1 − alpha · max(0, dnfRate − baselineRate)
+   *   deficit = dnfRate − baselineRate
+   *   if deficit ≥ 0: mult = max(floor, 1 − alpha · deficit)       (penalty)
+   *   if deficit <  0: mult = min(ceil,  1 − bonusAlpha · deficit) (reward)
    *
-   * clamped to `floor`. Matches the approach James Macdiarmid suggested
-   * for BLD / FMC / multi where DNF rate is meaningful.
+   * The penalty side matches the approach James Macdiarmid suggested
+   * for BLD / FMC / multi where DNF rate is meaningful. The reward side
+   * (off by default — `bonusAlpha = 0`) lets calibrators optionally
+   * boost competitors whose reliability is better than the baseline.
    */
   dnfPenalty: {
     enabled: boolean;
-    alpha: number;           // 1.0
-    baselineRate: number;    // 0.1  — a normal Ao5 has ~1/5 = 0.2 if one DNF is common; BLD is higher
-    floor: number;           // 0.5  — never cut rating by more than half
+    alpha: number;           // 1.0 — penalty slope when above baseline
+    bonusAlpha: number;      // 0   — reward slope when below baseline (off by default)
+    baselineRate: number;    // 0.1 — expected background rate; adjustment pivots here
+    floor: number;           // 0.5 — never cut rating by more than half
+    ceil: number;            // 1.5 — never boost rating by more than 50%
   };
   /**
    * Per-format weight. Multiplies each round's Kinch-post-bonus score by

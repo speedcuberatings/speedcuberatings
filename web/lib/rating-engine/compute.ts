@@ -266,14 +266,27 @@ function computeOneCandidate(
   }
   let raw = weightedScoreSum / weightSum;
 
-  // 4. Optional DNF penalty applied to the raw rating, before inactivity decay.
+  // 4. Optional DNF-rate adjustment applied to the raw rating, before
+  //    inactivity decay. Two-sided: a penalty when DNF rate exceeds the
+  //    baseline and (optionally, when `bonusAlpha > 0`) a reward when
+  //    the rate is below it. `bonusAlpha` defaults to 0 so enabling the
+  //    extra with defaults preserves the original one-sided behaviour.
   if (extras.dnfPenalty.enabled && attemptCountTotal > 0) {
     const rate = dnfCountTotal / attemptCountTotal;
-    const excess = Math.max(0, rate - extras.dnfPenalty.baselineRate);
-    const mult = Math.max(
-      extras.dnfPenalty.floor,
-      1 - extras.dnfPenalty.alpha * excess,
-    );
+    const deficit = rate - extras.dnfPenalty.baselineRate;
+    let mult: number;
+    if (deficit >= 0) {
+      mult = Math.max(
+        extras.dnfPenalty.floor,
+        1 - extras.dnfPenalty.alpha * deficit,
+      );
+    } else {
+      // deficit < 0 → (1 - bonusAlpha * deficit) > 1; clamp to `ceil`.
+      mult = Math.min(
+        extras.dnfPenalty.ceil,
+        1 - extras.dnfPenalty.bonusAlpha * deficit,
+      );
+    }
     raw *= mult;
   }
 

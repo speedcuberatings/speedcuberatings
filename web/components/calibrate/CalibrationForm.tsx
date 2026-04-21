@@ -276,11 +276,11 @@ export function CalibrationForm({
       </p>
 
       <Section
-        title="DNF-rate penalty"
+        title="DNF-rate adjustment"
         subtitle={config.extras.dnfPenalty.enabled ? 'ON' : 'off'}
       >
         <Toggle
-          label="Enable DNF penalty"
+          label="Enable DNF adjustment"
           value={config.extras.dnfPenalty.enabled}
           onChange={(v) =>
             update((c) => ({
@@ -295,8 +295,8 @@ export function CalibrationForm({
         {config.extras.dnfPenalty.enabled && (
           <>
             <NumberKnob
-              label="α (alpha)"
-              help="rating *= max(floor, 1 − α × max(0, dnfRate − baseline))"
+              label="α (penalty slope)"
+              help="Slope applied when dnfRate > baseline. rating *= max(floor, 1 − α × (dnfRate − baseline))"
               min={0}
               max={5}
               step={0.1}
@@ -313,8 +313,26 @@ export function CalibrationForm({
               }
             />
             <NumberKnob
+              label="β (bonus slope)"
+              help="Slope applied when dnfRate < baseline. 0 = penalty-only (default). rating *= min(ceil, 1 + β × (baseline − dnfRate))"
+              min={0}
+              max={5}
+              step={0.1}
+              value={config.extras.dnfPenalty.bonusAlpha}
+              defaultValue={DEFAULT_CONFIG.extras.dnfPenalty.bonusAlpha}
+              onChange={(v) =>
+                update((c) => ({
+                  ...c,
+                  extras: {
+                    ...c.extras,
+                    dnfPenalty: { ...c.extras.dnfPenalty, bonusAlpha: v },
+                  },
+                }))
+              }
+            />
+            <NumberKnob
               label="Baseline DNF rate"
-              help="Expected background DNF rate; penalty starts above this."
+              help="Expected background DNF rate. Penalty applies above; bonus applies below (if β > 0)."
               min={0}
               max={1}
               step={0.01}
@@ -346,6 +364,25 @@ export function CalibrationForm({
                   extras: {
                     ...c.extras,
                     dnfPenalty: { ...c.extras.dnfPenalty, floor: v },
+                  },
+                }))
+              }
+            />
+            <NumberKnob
+              label="Ceil"
+              help="Never multiply rating by more than this (caps the bonus side)."
+              min={1}
+              max={2}
+              step={0.05}
+              value={config.extras.dnfPenalty.ceil}
+              defaultValue={DEFAULT_CONFIG.extras.dnfPenalty.ceil}
+              precision={2}
+              onChange={(v) =>
+                update((c) => ({
+                  ...c,
+                  extras: {
+                    ...c.extras,
+                    dnfPenalty: { ...c.extras.dnfPenalty, ceil: v },
                   },
                 }))
               }

@@ -260,7 +260,11 @@ people you want to have access.
   inactivity base, grace days, Kinch scale, placement & record bonus,
   champ multipliers…) plus three experimental "extras" which are off by
   default so default = production:
-  - `dnfPenalty` — rate-based penalty (no-op today, see limitation below)
+  - `dnfPenalty` — rate-based adjustment. Two-sided: penalty above a
+    baseline DNF rate, optional reward below it (gated by a separate
+    `bonusAlpha` slope that defaults to 0, so enabling the extra with
+    defaults keeps the original penalty-only behaviour). Clamped by
+    `floor` and `ceil`. See limitation below.
   - `formatWeights` — per-format multipliers (Ao5, Mo3, Bo3, Bo5, Bo2, Bo1)
   - `roundTypeFilter` — include-list by `round_type_id`
 - **Per-event overrides.** Any global parameter can be overridden on a

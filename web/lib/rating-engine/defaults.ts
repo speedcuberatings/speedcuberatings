@@ -84,8 +84,10 @@ export const DEFAULT_CONFIG: RatingConfig = {
     dnfPenalty: {
       enabled: false,
       alpha: 1.0,
+      bonusAlpha: 0,
       baselineRate: 0.1,
       floor: 0.5,
+      ceil: 1.5,
     },
     formatWeights: {
       enabled: false,

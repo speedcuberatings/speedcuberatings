@@ -343,6 +343,63 @@ export async function getCompetitorHistory(wcaId: string): Promise<CompetitorHis
   return rows;
 }
 
+export interface CompetitorSearchResult {
+  wca_id: string;
+  name: string;
+  country_id: string;
+  country_iso2: string | null;
+  best_rating: number | null;
+}
+
+/**
+ * Flexible name / WCA-ID lookup for the global search box.
+ *
+ * The query is split on whitespace into tokens; every token must appear
+ * somewhere in the competitor's name (case-insensitive substring). This
+ * makes the search order-independent, so "Feliks Zemdegs", "Zemdegs
+ * Feliks", "fel zem", or just "zemdegs" all match. As an alternative
+ * path, the whole trimmed query is matched as an exact WCA ID.
+ *
+ * A WCA ID is matched three ways: exact, prefix, or substring — so
+ * "2009ZEMD01", "2009ZEMD", or "ZEMD" all find the competitor.
+ *
+ * Ranked: exact-ID match first, then names that *start with* the query
+ * (prefix), then by best current rating so notable competitors surface
+ * at the top, then alphabetically.
+ */
+export async function searchCompetitors(
+  query: string,
+  limit: number = 10,
+): Promise<CompetitorSearchResult[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const escape = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
+  const tokens = q.split(/\s+/).filter(Boolean).map((t) => `%${escape(t)}%`);
+  const prefix = `${escape(q)}%`;
+  const idContains = `%${escape(q.replace(/\s+/g, ''))}%`;
+
+  const rows = (await sql()`
+    SELECT c.wca_id,
+           c.name,
+           c.country_id,
+           c.country_iso2,
+           MAX(cr.rating)::float8 AS best_rating
+      FROM app.competitors c
+      LEFT JOIN app.current_ratings cr ON cr.competitor_id = c.wca_id
+     WHERE c.wca_id ILIKE ${idContains}
+        OR c.name ILIKE ALL(${tokens}::text[])
+     GROUP BY c.wca_id, c.name, c.country_id, c.country_iso2
+     ORDER BY (upper(c.wca_id) = upper(${q})) DESC,
+              (c.name ILIKE ${prefix}) DESC,
+              (c.wca_id ILIKE ${idContains}) DESC,
+              MAX(cr.rating) DESC NULLS LAST,
+              c.name ASC
+     LIMIT ${limit}
+  `) as CompetitorSearchResult[];
+  return rows;
+}
+
 export const getMetadata = unstable_cache(
   async (): Promise<{
     lastExportDate: string | null;

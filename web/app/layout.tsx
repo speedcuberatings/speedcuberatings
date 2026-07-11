@@ -7,6 +7,7 @@ import './globals.css';
 import '@cubing/icons';
 import { RandomFavicon } from '@/components/RandomFavicon';
 import { FeedbackButton } from '@/components/FeedbackButton';
+import { GlobalSearch } from '@/components/GlobalSearch';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -84,20 +85,28 @@ function SiteHeader() {
             An independent leaderboard · based on WCA results
           </span>
         </Link>
-        <nav
-          aria-label="Primary"
-          className="flex items-center gap-5 sm:gap-6 pt-3 text-[13px] tracking-[0.04em] text-[var(--color-muted)] shrink-0"
-        >
-          <Link href="/rankings/333" className="hover:text-[var(--color-ink)] transition-colors">
-            Rankings
-          </Link>
-          <Link href="/calibrate" className="hover:text-[var(--color-ink)] transition-colors">
-            Calibrate
-          </Link>
-          <Link href="/about" className="hover:text-[var(--color-ink)] transition-colors">
-            About
-          </Link>
-        </nav>
+        <div className="flex flex-col items-end gap-3 pt-1 shrink-0">
+          <nav
+            aria-label="Primary"
+            className="flex items-center gap-5 sm:gap-6 text-[13px] tracking-[0.04em] text-[var(--color-muted)]"
+          >
+            <Link href="/rankings/333" className="hover:text-[var(--color-ink)] transition-colors">
+              Rankings
+            </Link>
+            <Link href="/calibrate" className="hover:text-[var(--color-ink)] transition-colors">
+              Calibrate
+            </Link>
+            <Link href="/about" className="hover:text-[var(--color-ink)] transition-colors">
+              About
+            </Link>
+          </nav>
+          <div className="hidden sm:block">
+            <GlobalSearch />
+          </div>
+        </div>
+      </div>
+      <div className="sm:hidden mx-auto max-w-[1200px] px-4 pb-5 -mt-1">
+        <GlobalSearch />
       </div>
     </header>
   );
